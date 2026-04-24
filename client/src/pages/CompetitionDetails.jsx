@@ -252,7 +252,9 @@ function CompetitionDetails() {
   // - "competicion_actualizada": cambió la configuración de la competición
   // ============================================================
   useEffect(() => {
-    const socket = io(API_URL, { withCredentials: true });
+    const socket = io("https://aas-live.onrender.com", {
+      withCredentials: true,
+    });
 
     socket.on("resultado_actualizado", (data) => {
       // Solo refresca si es para esta competición, evento y ronda

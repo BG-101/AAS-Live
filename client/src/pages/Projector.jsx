@@ -79,7 +79,9 @@ function Projector() {
   // Escucha cambios de resultados y configuración de la competición.
   // ============================================================
   useEffect(() => {
-    const socket = io(API_URL, { withCredentials: true });
+    const socket = io("https://aas-live.onrender.com", {
+      withCredentials: true,
+    });
 
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
