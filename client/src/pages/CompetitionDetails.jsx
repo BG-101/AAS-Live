@@ -716,10 +716,10 @@ function CompetitionDetails() {
       />
 
       {/* === CABECERA === */}
-      <div className="bg-gray-900 border-b-4 border-almeria-orange p-8 shadow-md relative">
-        <div className="max-w-6xl mx-auto flex justify-between items-start">
+      <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-4">
           {/* Info de la competición (izquierda) */}
-          <div>
+          <div className="flex-1 min-w-0">
             {/* Enlace de vuelta al calendario (oculto en modo proyector) */}
             {!isProjector && (
               <Link
@@ -729,17 +729,26 @@ function CompetitionDetails() {
                 ← Volver al calendario
               </Link>
             )}
-            <h1 className="text-4xl font-bold text-white mt-2 tracking-wide uppercase">
+            <h1 className="text-2xl md:text-4xl font-bold text-white mt-2 tracking-wide uppercase break-words">
               {competition.name}
             </h1>
-            <p className="text-almeria-orange mt-1">
-              📍 {competition.location} | 📅{displayDate}
-            </p>
+            {/* Ubicación y fecha */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+              <span className="text-almeria-orange text-sm md:text-base">
+                📍 {competition.location}
+              </span>
+              <span className="text-almeria-orange text-sm md:text-base">
+                |
+              </span>
+              <span className="text-almeria-orange text-sm md:text-base">
+                📅 {displayDate}
+              </span>
+            </div>
             {/* Badges de opciones activas */}
             {(competition.sorEnabled || competition.ageGroupsEnabled) && (
-              <div className="flex gap-2 mt-2 flex wrap">
+              <div className="flex gap-2 mt-2 flex-wrap">
                 {competition.sorEnabled && (
-                  <span className="text-xs font-bold bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-bold bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-md whitespace-nowrap">
                     🏅 SOR
                     {competition.scoringSystem === "f1"
                       ? " · Estilo F1"
@@ -747,7 +756,7 @@ function CompetitionDetails() {
                   </span>
                 )}
                 {competition.ageGroupsEnabled && (
-                  <span className="text-xs font-bold bg-purple-900 text-purple-300 border border-purple-700 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-bold bg-purple-900 text-purple-300 border border-purple-700 px-2 py-0.5 rounded-md whitespace-nowrap">
                     👶 Separación por edad
                   </span>
                 )}
@@ -756,23 +765,23 @@ function CompetitionDetails() {
           </div>
 
           {/* Controles de cabecera (derecha) */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end w-full md:w-auto">
             {/* Botón vaciar papelera (solo SuperAdmin) */}
             {user?.role === "SuperAdmin" && (
               <button
                 onClick={handleEmptyTrash}
-                className="bg-red-900 text-red-100 px-4 py-2 rounded border border-red-700 hover:bg-red-700 transition font-bold shadow-md"
+                className="bg-red-900 text-red-100 px-3 py-1.5 rounded border border-red-700 hover:bg-red-700 transition font-bold shadow-md text-xs md:text-sm"
               >
-                🗑️ Vaciar Papelera
+                🗑️ <span className="hidden sm:inline">Vaciar Papelera</span>
               </button>
             )}
 
             {user?.role === "SuperAdmin" && (
               <button
                 onClick={() => setShowCompetitorEditor(true)}
-                className="bg-purple-800 text-purple-100 px-4 py-2 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md"
+                className="bg-purple-800 text-purple-100 px-3 py-1.5 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md text-xs md:text-sm"
               >
-                ✏️ Editar Competidores
+                ✏️ <span className="hidden sm:inline">Editar Competidores</span>
               </button>
             )}
 
@@ -780,9 +789,9 @@ function CompetitionDetails() {
             {isWritableAdmin && (
               <button
                 onClick={handleOpenLogs}
-                className="bg-white text-gray-900 px-4 py-2 rounded font-bold shadow-md hover:bg-gray-200"
+                className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
               >
-                📜 Logs
+                📜 <span className="hidden sm:inline">Logs</span>
               </button>
             )}
 
@@ -791,9 +800,9 @@ function CompetitionDetails() {
               <Link
                 to={`/projector/${id}/${selectedEvent}/${selectedRound}`}
                 target="_blank"
-                className="bg-blue-600 text-white px-4 py-2 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md"
+                className="bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
               >
-                📺 Proyector
+                📺 <span className="hidden sm:inline">Proyector</span>
               </Link>
             )}
 
@@ -801,18 +810,27 @@ function CompetitionDetails() {
             {user ? (
               <button
                 onClick={handleLogout}
-                className="bg-red-500 text-white px-4 py-2 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md"
+                className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
               >
-                {isProjector
-                  ? "🔒 Salir de Proyector"
-                  : `🔓 Cerrar Sesión (${user.username})`}
+                {isProjector ? (
+                  "🔓 Salir"
+                ) : (
+                  <>
+                    🔓{" "}
+                    <span className="hidden sm:inline">
+                      Cerrar Sesión ({user.username})
+                    </span>
+                    <span className="sm:hidden">Salir</span>
+                  </>
+                )}
               </button>
             ) : (
               <button
                 onClick={() => setShowLogin(true)}
-                className="bg-gray-800 text-gray-300 px-4 py-2 rounded border border-gray-600 hover:text-white transition"
+                className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded border border-gray-600 hover:text-white transition text-xs md:text-sm"
               >
-                🔒 Acceso Organización
+                🔒 <span className="hidden sm:inline">Acceso Organización</span>
+                <span className="sm:hidden">Acceder</span>
               </button>
             )}
           </div>

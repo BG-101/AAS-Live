@@ -330,14 +330,14 @@ function Home() {
           />
 
           {/* Controles de autenticación (esquina superior derecha) */}
-          <div className="absolute top-8 right-8 flex gap-4">
+          <div className="absolute top-4 right-4 md:top-8 md:right-8 flex gap-2 flex-wrap justify-end max-w-xs md:max-w-none">
             {/* Botón de nuevo usuario (solo SuperAdmin) */}
             {user?.role === "SuperAdmin" && (
               <button
                 onClick={() => setShowRegister(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md"
+                className="bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
               >
-                + Nuevo Usuario
+                + <span className="hidden sm:inline">Nuevo Usuario</span>
               </button>
             )}
 
@@ -345,16 +345,21 @@ function Home() {
             {user ? (
               <button
                 onClick={handleLogout}
-                className="bg-red-500 text-white px-4 py-2 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md"
+                className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
               >
-                🔓 Cerrar Sesión ({user.username})
+                🔓{" "}
+                <span className="hidden sm:inline">
+                  Cerrar Sesión ({user.username})
+                </span>
+                <span className="sm:hidden">Salir</span>
               </button>
             ) : (
               <button
                 onClick={() => setShowLogin(true)}
-                className="bg-gray-800 text-gray-300 px-4 py-2 rounded border border-gray-600 hover:bg-almeria-orange hover:text-white transition"
+                className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded border border-gray-600 hover:bg-almeria-orange hover:text-white transition text-xs md:text-sm"
               >
-                🔒 Acceso Organización
+                🔒 <span className="hidden sm:inline">Acceso Organización</span>
+                <span className="sm:hidden">Acceder</span>
               </button>
             )}
           </div>

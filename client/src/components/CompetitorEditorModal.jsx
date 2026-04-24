@@ -159,7 +159,7 @@ export default function CompetitorEditorModal({
                   return (
                     <tr
                       key={competitor._id}
-                      className={`transition ${dirty ? "bg-orange-50" : "bg-white hover:bg-gray-50"}`}
+                      className={`transition ${dirty ? "bg-orange-50" : "bg-white hover:bg-gray-100"}`}
                     >
                       {/* Número de competidor (readonly) */}
                       <td className="p-3 text-center font-mono text-gray-500 font-bold">
@@ -170,7 +170,7 @@ export default function CompetitorEditorModal({
                       <td className="p-3">
                         <input
                           type="text"
-                          className="w-full border rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-almeria-orange"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
                           value={edit.name}
                           onChange={(e) =>
                             updateField(competitor._id, "name", e.target.value)
@@ -182,7 +182,7 @@ export default function CompetitorEditorModal({
                       <td className="p-3">
                         <input
                           type="text"
-                          className="w-full border px-2 py-1 text-sm font-mono uppercase outline-none focus:ring-2 focus:ring-almeria-orange"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white font-mono uppercase placeholder-gray-400 outline-none focus:border-almeria-orange"
                           value={edit.wcaId}
                           onChange={(e) =>
                             updateField(competitor._id, "wcaId", e.target.value)
@@ -195,7 +195,7 @@ export default function CompetitorEditorModal({
                       <td className="p-3">
                         <input
                           type="number"
-                          className="w-full border rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-almeria-orange"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
                           value={edit.age}
                           onChange={(e) =>
                             updateField(competitor._id, "age", e.target.value)
@@ -208,7 +208,7 @@ export default function CompetitorEditorModal({
                       <td className="p-3">
                         <input
                           type="text"
-                          className="w-full border rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-almeria-orange"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
                           value={edit.locality}
                           onChange={(e) =>
                             updateField(
