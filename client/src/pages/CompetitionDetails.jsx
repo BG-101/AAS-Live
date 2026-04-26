@@ -23,6 +23,8 @@ import TimeEntryForm from "../components/TimeEntryForm";
 import SORTable from "../components/SORTable";
 import CompetitorEditorModal from "../components/CompetitorEditorModal";
 import { API_URL } from "../utils/api";
+import { toast } from "../utils/toast";
+import { exportResultsToCSV } from "../utils/exportCsv";
 
 import {
   formatTime,
@@ -341,8 +343,10 @@ function CompetitionDetails() {
   // ============================================================
   const handleAddCompetitor = async (e) => {
     e.preventDefault();
-    if (newCompetitor.events.length === 0)
-      return alert("Selecciona al menos 1 categoría.");
+    if (newCompetitor.events.length === 0) {
+      toast("Selecciona al menos 1 categoría", "error");
+      return;
+    }
     if (isAddingComp) return; // Evita doble-submit
 
     setIsAddingComp(true);
@@ -351,6 +355,7 @@ function CompetitionDetails() {
         ...newCompetitor,
         competitionId: id,
       });
+      toast(`${newCompetitor.name} inscrito correctamente`, "success");
       // Limpia el formulario y recarga la lista
       setNewCompetitor({
         name: "",
@@ -361,7 +366,7 @@ function CompetitionDetails() {
       });
       setRefreshCompetitors((prev) => prev + 1);
     } catch (error) {
-      alert(error.response?.data?.message || "Error al añadir");
+      toast(error.response?.data?.message || "Error al añadir", "error");
     } finally {
       setIsAddingComp(false);
     }
@@ -446,7 +451,10 @@ function CompetitionDetails() {
   // ============================================================
   const handleSubmitTimes = async (e) => {
     e.preventDefault();
-    if (!selectedCompetitorId) return alert("Selecciona un competidor.");
+    if (!selectedCompetitorId) {
+      toast("Selecciona un competidor", "error");
+      return;
+    }
     if (isSavingTimes) return;
     setIsSavingTimes(true);
 
@@ -464,6 +472,10 @@ function CompetitionDetails() {
         times: timesInCentiseconds,
       });
 
+      // Nombre del competidor para el toast
+      const comp = competitors.find((c) => c._id === selectedCompetitorId);
+      toast(`Tiempos guardados - ${comp?.name || ""}`, "success");
+
       // Limpia el formulario y recarga los resultados
       setInputTimes(["", "", "", "", ""]);
       setSelectedCompetitorId("");
@@ -473,9 +485,9 @@ function CompetitionDetails() {
       // Devuelve el foco al buscador para registro rápido
       if (searchInputRef.current) searchInputRef.current.focus();
     } catch (error) {
-      alert(
-        "Error crítico: " +
-          (error.response?.data?.message || "Contacta al admin."),
+      toast(
+        error.response?.data?.message || "Error al guardar. Contacta al admin",
+        "error",
       );
     } finally {
       setIsSavingTimes(false);
@@ -719,7 +731,7 @@ function CompetitionDetails() {
 
       {/* === CABECERA === */}
       <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-4">
+        <div className="w-full px-6 mx-auto flex flex-col md:flex-row justify-between items-start gap-4">
           {/* Info de la competición (izquierda) */}
           <div className="flex-1 min-w-0">
             {/* Enlace de vuelta al calendario (oculto en modo proyector) */}
@@ -746,6 +758,24 @@ function CompetitionDetails() {
                 📅 {displayDate}
               </span>
             </div>
+            {/* Contador de aforo */}
+            <p className="text-sm mt-1">
+              <span
+                className={`font-bold ${
+                  competition.competitorCount >= competition.competitorLimit
+                    ? "text-red-400"
+                    : "text-gray-400"
+                }`}
+              >
+                👥 {competitors.length} / {competition.competitorLimit}{" "}
+                competidores
+                {competitors.length >= competition.competitorLimit && (
+                  <span className="ml-2 text-xs bg-red-900 text-red-300 px-1.5 py-0.5 rounded-full">
+                    AFORO COMPLETO
+                  </span>
+                )}
+              </span>
+            </p>
             {/* Badges de opciones activas */}
             {(competition.sorEnabled || competition.ageGroupsEnabled) && (
               <div className="flex gap-2 mt-2 flex-wrap">
@@ -802,9 +832,9 @@ function CompetitionDetails() {
               <Link
                 to={`/projector/${id}/${selectedEvent}/${selectedRound}`}
                 target="_blank"
-                className="bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
+                className="hidden sm:flex items-center bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
               >
-                📺 <span className="hidden sm:inline">Proyector</span>
+                📺 <span className="hidden sm:inline ml-1">Proyector</span>
               </Link>
             )}
 
@@ -840,7 +870,7 @@ function CompetitionDetails() {
       </div>
 
       {/* === CONTENIDO PRINCIPAL === */}
-      <div className="max-w-6xl mx-auto p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="w-full px-6 mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* --- COLUMNA IZQUIERDA: Solo visible para admins --- */}
         {isWritableAdmin && (
           <div className="space-y-6 lg:col-span-1">
@@ -1162,6 +1192,25 @@ function CompetitionDetails() {
                     className="text-sm bg-wca-green text-white px-3 py-1 rounded hover:bg-green-600 transition font-bold whitespace-nowrap ml-4"
                   >
                     + Abrir Ronda {currentEventRounds.length + 1}
+                  </button>
+                )}
+
+                {/* Botón exportar CSV - visible para todos cuand hay resultados */}
+                {displayResults.length > 0 && (
+                  <button
+                    onClick={() =>
+                      exportResultsToCSV(
+                        displayResults,
+                        selectedEvent,
+                        selectedRound,
+                        roundFormat,
+                        formatTime,
+                      )
+                    }
+                    className="text-sm bg-gray-700 text-gray-300 px-3 py-1 rounded hover:bg-gray-600 hover:text-white transition font-bold whitespace-nowrap ml-2"
+                    title="Descargar resultados como CSV"
+                  >
+                    ⬇️ CSV
                   </button>
                 )}
               </div>

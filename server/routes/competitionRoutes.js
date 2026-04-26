@@ -7,6 +7,7 @@
 const express = require("express");
 const router = express.Router();
 const Competition = require("../models/Competition");
+const Competitor = require("../models/Competitor");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
@@ -41,7 +42,14 @@ router.get("/:id", validateObjectId(), async (req, res) => {
       isDeleted: { $ne: true },
     });
     if (!competition) return res.status(404).json({ message: "No encontrada" });
-    res.json(competition);
+
+    // Cuenta los competidores activos de esta competición
+    const competitorCount = await Competitor.countDocuments({
+      competition: req.params.id,
+      isDeleted: { $ne: true },
+    });
+
+    res.json({ ...competition.toObject(), competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
