@@ -1058,38 +1058,38 @@ function CompetitionDetails() {
         {/* --- COLUMNA DERECHA: Resultados (visible para todos) --- */}
         <div className={isWritableAdmin ? "lg:col-span-2" : "lg:col-span-3"}>
           {/* Pestañas de eventos */}
-          <div className="flex gap-2 mb-2 border-b border-gray-700 pb-2 overflow-x-auto">
-            {/* Pestañas de grupos de edad (solo si está habilitado y no estamos en SOR) */}
-            {competition.ageGroupsEnabled && selectedEvent !== "__SOR__" && (
-              <div className="flex gap-2 mb-2 flex-wrap">
+          {/* Pestañas de grupos de edad (solo si está habilitado y no estamos en SOR) */}
+          {competition.ageGroupsEnabled && selectedEvent !== "__SOR__" && (
+            <div className="flex gap-1.5 md:gap-2 mb-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setSelectedAgeGroup(null)}
+                className={`px-2.5 py-0.5 md:px-4 md:py-1 text-xs font-bold rounded-full transition ${
+                  !selectedAgeGroup
+                    ? "bg-almeria-orange text-white"
+                    : "bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white"
+                }`}
+              >
+                Todos
+              </button>
+              {Object.entries(AGE_GROUPS_CLIENT).map(([key, group]) => (
                 <button
+                  key={key}
                   type="button"
-                  onClick={() => setSelectedAgeGroup(null)}
-                  className={`px-4 py-1 text-xs font-bold rounded-full transition ${
-                    !selectedAgeGroup
+                  onClick={() => setSelectedAgeGroup(key)}
+                  className={`px-2.5 py-0.5 md:px-4 md:py-1 text-xs font-bold rounded-full transition ${
+                    selectedAgeGroup === key
                       ? "bg-almeria-orange text-white"
                       : "bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white"
                   }`}
                 >
-                  Todos
+                  {group.label}
                 </button>
-                {Object.entries(AGE_GROUPS_CLIENT).map(([key, group]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setSelectedAgeGroup(key)}
-                    className={`px-4 py-1 text-xs font-bold rounded-full transition ${
-                      selectedAgeGroup === key
-                        ? "bg-almeria-orange text-white"
-                        : "bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white"
-                    }`}
-                  >
-                    {group.label}
-                  </button>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
+          )}
 
+          <div className="flex gap-1.5 md:gap-2 mb-2 border-b border-gray-700 pb-2 overflow-x-auto">
             {competition.events.map((ev) => (
               <button
                 key={ev}
@@ -1098,9 +1098,9 @@ function CompetitionDetails() {
                   setSelectedEvent(ev);
                   setSelectedRound(1); // Vuelve a la ronda 1 al cambiar de evento
                 }}
-                className={`px-6 py-2 font-bold rounded-t-lg transition ${selectedEvent === ev ? "bg-almeria-orange text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"}`}
+                className={`px-3 py-1 md:px-6 md:py-2 text-xs md:text-sm font-bold rounded-t-lg transition whitespace-nowrap ${selectedEvent === ev ? "bg-almeria-orange text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"}`}
               >
-                Evento {ev}
+                {ev}
               </button>
             ))}
 
@@ -1111,7 +1111,7 @@ function CompetitionDetails() {
                 onClick={() => {
                   setSelectedEvent("__SOR__");
                 }}
-                className={`px-6 py-2 font-bold rounded-t-lg transition ${
+                className={`px-3 py-1 md:px-6 md:py-2 text-xs md:text-sm font-bold rounded-t-lg transition whitespace-nowrap ${
                   selectedEvent === "__SOR__"
                     ? "bg-almeria-orange text-white"
                     : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"

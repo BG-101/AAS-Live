@@ -166,6 +166,20 @@ export default function ResultsTable({
     <>
       {/* ── VISTA MÓVIL ── */}
       <div className="block md:hidden bg-white text-gray-900 rounded-b-lg rounded-tr-lg shadow-xl overflow-hidden">
+        {/* Encabezado */}
+        <div className="flex items-center gap-3 px-4 py-2 bg-gray-100 border-b-2 border-gray-300">
+          <span className="text-gray-600 font-bold text-xs uppercase w-5 text-center shrink-0">
+            #
+          </span>
+          <span className="text-gray-600 font-bold text-xs uppercase flex-1">
+            Nombre
+          </span>
+          <span className="text-gray-600 font-bold text-xs uppercase shrink-0">
+            {avgLabel}
+          </span>
+          <span className="w-3 shrink-0" /> {/* Espacio para el › */}
+        </div>
+
         {results.length === 0 ? (
           <div className="p-10 text-center text-gray-500 flex flex-col items-center">
             <span className="text-4xl mb-2">⏱️</span>
