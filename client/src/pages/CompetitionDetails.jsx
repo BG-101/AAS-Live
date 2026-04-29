@@ -275,9 +275,26 @@ function CompetitionDetails() {
       }
     });
 
-    socket.on("competicion_actualizada", (compId) => {
+    socket.on("competicion_actualizada", async (compId) => {
       if (compId === id) {
-        setRefreshCompetitions((prev) => prev + 1);
+        try {
+          // Verifica que la competición sigue existiendo antes de refrescar
+          await axios.get(`${API_URL}/api/competitions/${id}`);
+          setRefreshCompetitions((prev) => prev + 1);
+          setRefreshResults((prev) => prev + 1);
+          setRefreshCompetitors((prev) => prev + 1);
+        } catch (e) {
+          if (e.response?.status === 404) {
+            // La competición fue eliminada, volver al inicio
+            navigate("/");
+          }
+        }
+      }
+    });
+
+    socket.on("competidor_actualizado", (data) => {
+      if (data.competitionId === id) {
+        setRefreshCompetitors((prev) => prev + 1);
         setRefreshResults((prev) => prev + 1);
       }
     });
@@ -585,8 +602,37 @@ function CompetitionDetails() {
   /** Alterna el estado de la ronda entre "In Progress" y "Finished" */
   const handleToggleRoundStatus = async (isFinished) => {
     const newStatus = isFinished ? "In Progress" : "Finished";
-    if (!confirm(`¿Marcar como ${isFinished ? "EN CURSO" : "FINALIZADA"}?`))
-      return;
+
+    // Al reabrir una ronda, comprueba si hay resultados en rondas posteriores
+    if (isFinished) {
+      const hasLaterResults =
+        results.length > 0 &&
+        competition.rounds.some(
+          (r) => r.event === selectedEvent && r.roundNumber > selectedRound,
+        );
+
+      if (hasLaterResults) {
+        const confirmReopen = window.confirm(
+          `⚠️ ATENCIÓN\n\nHay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\nSi reabres esta ronda y modificas tiempos, estos datos pueden quedar inconsistentes\n\n¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
+        );
+        if (!confirmReopen) return;
+
+        try {
+          await axios.delete(
+            `${API_URL}/api/competitions/${id}/round-results-after`,
+            { data: { event: selectedEvent, fromRound: selectedRound } },
+          );
+        } catch (err) {
+          alert("Error al limpiar resultados posteriores.");
+          return;
+        }
+      } else {
+        if (!window.confirm("¿Marcar como EN CURSO?")) return;
+      }
+    } else {
+      if (!window.confirm("¿Marcar como FINALIZADA?")) return;
+    }
+
     try {
       await axios.put(`${API_URL}/api/competitions/${id}/round-status`, {
         event: selectedEvent,

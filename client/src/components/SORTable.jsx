@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
+import { io } from "socket.io-client";
 
 const AGE_GROUP_KEYS = ["alevin", "infantil", "absoluta"];
 const AGE_GROUP_LABELS = {
@@ -25,6 +26,7 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
   const [sorData, setSorData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null); // Para el sheet móvil
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const systemLabel =
     sorData?.scoringSystem === "f1"
@@ -49,7 +51,25 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
       .then((res) => setSorData(res.data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [compId, activeGroup]);
+  }, [compId, activeGroup, refreshTrigger]);
+
+  useEffect(() => {
+    const socket = io("https://aas-live.onrender.com", {
+      withCredentials: true,
+    });
+
+    socket.on("resultado_actualizado", (data) => {
+      if (data.competitorId === compId) {
+        setRefreshTrigger((prev) => prev + 1);
+      }
+    });
+
+    socket.on("competicion_actualizada", (id) => {
+      if (id === compId) setRefreshTrigger((prev) => prev + 1);
+    });
+
+    return () => socket.disconnect();
+  }, [compId]);
 
   return (
     <div>

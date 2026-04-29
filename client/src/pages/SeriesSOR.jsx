@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { API_URL } from "../utils/api";
+import { io } from "socket.io-client";
 
 const AGE_GROUP_KEYS = ["alevin", "infantil", "absoluta"];
 const AGE_GROUP_LABELS = {
@@ -22,6 +23,7 @@ function SeriesSOR() {
   const [activeGroup, setActiveGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -34,7 +36,22 @@ function SeriesSOR() {
       .then((res) => setData(res.data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [seriesName, activeGroup]);
+  }, [seriesName, activeGroup, refreshTrigger]);
+
+  useEffect(() => {
+    const socket = io("https://aas-live.onrender.com", {
+      withCredentials: true,
+    });
+
+    socket.on("resultado_actualizado", () => {
+      setRefreshTrigger((prev) => prev + 1);
+    });
+    socket.on("competicion_actualizada", () => {
+      setRefreshTrigger((prev) => prev + 1);
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   if (loading)
     return (

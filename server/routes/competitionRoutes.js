@@ -10,6 +10,7 @@ const Competition = require("../models/Competition");
 const Competitor = require("../models/Competitor");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
+const Result = require("../models/Result");
 
 // ============================================================
 // GET /api/competitions
@@ -269,6 +270,33 @@ router.delete(
     try {
       await Competition.findByIdAndUpdate(req.params.id, { isDeleted: true });
       res.json({ message: "Competición movida a la papelera (Soft Delete)" });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
+
+// ============================================================
+// DELETE /api/competitions/:id/round-results-after
+// Elimina los resultados de todas las rondas posteriores a
+// roundNumber para un evento dado. Se llama cuando el admin
+// reabre una ronda y confirma que quiere limpiar datos inconsistentes.
+// ============================================================
+router.delete(
+  "/:id/round-results-after",
+  validateObjectId(),
+  auth(["SuperAdmin", "Delegado"]),
+  async (req, res) => {
+    const { event, fromRound } = req.body;
+    try {
+      await Result.deleteMany({
+        competition: req.params.id,
+        event,
+        round: { $gt: fromRound },
+      });
+
+      req.app.get("socketio").emit("competicion_actualizada", req.params.id);
+      res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {
       res.status(500).json({ message: err.message });
     }

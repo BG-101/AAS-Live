@@ -378,6 +378,13 @@ router.put(
         { new: true },
       );
 
+      // Notifica a los clientes para que recarguen la lista de competidores
+      const io = req.app.get("socketio");
+      if (io)
+        io.emit("competidor_actualizado", {
+          competitionId: comp.competition.toString(),
+        });
+
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: err.message });

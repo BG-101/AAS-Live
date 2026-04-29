@@ -735,7 +735,7 @@ function Home() {
                 <p className="text-gray-400">
                   {user?.role === "Delegado"
                     ? `¡Hola ${user.username}! Selecciona un torneo para gestionar tiempos.`
-                    : "Selecciona un torneo a la derecha para ver los resultados en vivo."}
+                    : "Selecciona un torneo a continuación para ver los resultados en vivo."}
                 </p>
               </div>
             )}
