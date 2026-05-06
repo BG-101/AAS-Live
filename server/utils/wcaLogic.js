@@ -197,7 +197,7 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
 
   const validCompetitors = validPrevResults.filter((r) => r.best > 0).length;
 
-  if (prevResults.advancementType === "ranking") {
+  if (prevRound.advancementType === "ranking") {
     return Math.min(prevRound.advancementValue, validCompetitors);
   } else if (prevRound.advancementType === "percent") {
     const prevTotal = await getEligibleCountByAgeGroup(

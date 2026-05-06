@@ -232,6 +232,14 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
             });
 
             await mirrored.save();
+
+            // Notifica a los clientes de esa competición de la serio
+            const io = req.app.get("socketio");
+            if (io) {
+              io.emit("competidor_actualizado", {
+                competitionId: seriesComp._id.toString(),
+              });
+            }
           } catch (innerErr) {
             console.error(
               `Auto-inscripción fallida en "${seriesComp.name}":`,
@@ -343,7 +351,7 @@ router.delete(
 router.put(
   "/:id",
   validateObjectId(),
-  auth(["SuperAdmin"]),
+  auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
       const { name, wcaId, age, locality, events } = req.body;
@@ -425,6 +433,14 @@ router.patch(
       }
 
       await comp.save();
+
+      const io = req.app.get("socketio");
+      if (io) {
+        io.emit("competidor_actualizado", {
+          competitionId: comp.competition.toString(),
+        });
+      }
+
       res.json(comp);
     } catch (err) {
       res.status(500).json({ message: err.message });

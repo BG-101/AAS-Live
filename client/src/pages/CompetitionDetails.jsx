@@ -327,6 +327,15 @@ function CompetitionDetails() {
     }
   };
 
+  const handleLogoutProjectors = async () => {
+    try {
+      await axios.post(`${API_URL}/api/auth/logout-projectors`);
+      toast("Señal enviada a todos los proyectores.", "info");
+    } catch {
+      toast("Error al enviar la señal.", "error");
+    }
+  };
+
   // ============================================================
   // HANDLER: Seleccionar un competidor del dropdown
   // Si ya tiene tiempos registrados, los carga en los inputs.
@@ -473,12 +482,26 @@ function CompetitionDetails() {
       return;
     }
     if (isSavingTimes) return;
-    setIsSavingTimes(true);
 
     // Convierte los strings de los inputs a centésimas de segundo
     const timesInCentiseconds = inputTimes
       .slice(0, attemptsCount)
       .map((t) => parseTimeInput(t));
+
+    // ── Detector de tiempos anómalos ──
+    const anomalousIndices = detectAnomalousTime(timesInCentiseconds);
+    if (anomalousIndices.length > 0) {
+      const anomalousFormatted = anomalousIndices
+        .map((i) => `T${i + 1}: ${formatTime(timesInCentiseconds[i])}`)
+        .join(", ");
+
+      const confirmed = window.confirm(
+        `⚠️ Tiempo anómalo detectado\n\n${anomalousFormatted}\n\nEste tiempo es muy diferente al resto. ¿Es correcto?`,
+      );
+      if (!confirmed) return; // El delegado revisa y cancela si es un error
+    }
+
+    setIsSavingTimes(true);
 
     try {
       await axios.post(`${API_URL}/api/results`, {
@@ -605,32 +628,53 @@ function CompetitionDetails() {
 
     // Al reabrir una ronda, comprueba si hay resultados en rondas posteriores
     if (isFinished) {
-      const hasLaterResults =
-        results.length > 0 &&
-        competition.rounds.some(
-          (r) => r.event === selectedEvent && r.roundNumber > selectedRound,
-        );
+      // Busca rondas posteriores configuradas para este evento
+      const laterRounds = competition.rounds.filter(
+        (r) => r.event === selectedEvent && r.roundNumber > selectedRound,
+      );
 
-      if (hasLaterResults) {
-        const confirmReopen = window.confirm(
-          `⚠️ ATENCIÓN\n\nHay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\nSi reabres esta ronda y modificas tiempos, estos datos pueden quedar inconsistentes\n\n¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
-        );
-        if (!confirmReopen) return;
-
+      if (laterRounds.length > 0) {
+        // Comprueba si alguna de esas rondas tiene resultados reales
+        let hasLaterResults = false;
         try {
-          await axios.delete(
-            `${API_URL}/api/competitions/${id}/round-results-after`,
-            { data: { event: selectedEvent, fromRound: selectedRound } },
+          const checks = await Promise.all(
+            laterRounds.map((r) =>
+              axios.get(
+                `${API_URL}/api/results/${id}/${selectedEvent}/${r.roundNumber}`,
+              ),
+            ),
           );
-        } catch (err) {
-          alert("Error al limpiar resultados posteriores.");
-          return;
+          hasLaterResults = checks.some((res) => res.data.length > 0);
+        } catch {
+          hasLaterResults = true; // Si falla el check, avisar por precaución
+        }
+
+        if (hasLaterResults) {
+          const confirmed = window.confirm(
+            `⚠️ ATENCIÓN\n\n` +
+              `Hay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\n` +
+              `Si reabres esta ronda y modificas tiempos, esos datos quedarán inconsistentes.\n\n` +
+              `¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
+          );
+          if (!confirmed) return;
+
+          try {
+            await axios.delete(
+              `${API_URL}/api/competitions/${id}/round-results-after`,
+              { data: { event: selectedEvent, fromRound: selectedRound } },
+            );
+          } catch {
+            alert("Error al limpiar resultados posteriores.");
+            return;
+          }
+        } else {
+          if (!window.confirm("¿Marcar como EN CURSO?")) return;
         }
       } else {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
       }
     } else {
-      if (!window.confirm("¿Marcar como FINALIZADA?")) return;
+      if (!window.confirm("¿Marcar como FINALIADA?")) return;
     }
 
     try {
@@ -734,6 +778,28 @@ function CompetitionDetails() {
   // Una vez cerrada, los colores son fiables porque advances está consolidado.
   const suppressAdvanceColors =
     competition.ageGroupsEnabled && !selectedAgeGroup && !isRoundFinished;
+
+  /**
+   * Detecta tiempos que se desvían significativamente del resto.
+   * Devuelve un array con los índices de tiempos sospechosos.
+   */
+  const detectAnomalousTime = (timesInCs) => {
+    const valid = timesInCs.filter((t) => t > 0); // Excluye vacíos, DNF y DNS
+    if (valid.length < 2) return []; // Sin suficientes datos para comparar
+
+    // Calcula la mediana de los tiempos válidos
+    const sorted = [...valid].sort((a, b) => a - b);
+    const median =
+      sorted.length % 2 === 0
+        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+        : sorted[Math.floor(sorted.length / 2)];
+
+    // Marca como anómalo cualquier tiempo que sea más de 3x la mediana
+    return timesInCs.reduce((acc, t, i) => {
+      if (t > 0 && t > median * 3) acc.push(i);
+      return acc;
+    }, []);
+  };
 
   // ============================================================
   // RENDERIZADO PRINCIPAL
@@ -844,6 +910,16 @@ function CompetitionDetails() {
 
           {/* Controles de cabecera (derecha) */}
           <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end w-full md:w-auto">
+            {isWritableAdmin && (
+              <button
+                onClick={handleLogoutProjectors}
+                title="Forzar cierre de sesión en todas las pantallas proyector"
+                className="bg-gray-700 text-gray-200 px-3 py-1.5 rounded border border-gray-600 hover:bg-gray-600 transition font-bold shadow-md text-xs md:text-sm"
+              >
+                📺 <span className="hidden sm:inline">Cerrar Proyectores</span>
+              </button>
+            )}
+
             {/* Botón vaciar papelera (solo SuperAdmin) */}
             {user?.role === "SuperAdmin" && (
               <button
@@ -854,7 +930,7 @@ function CompetitionDetails() {
               </button>
             )}
 
-            {user?.role === "SuperAdmin" && (
+            {isWritableAdmin && (
               <button
                 onClick={() => setShowCompetitorEditor(true)}
                 className="bg-purple-800 text-purple-100 px-3 py-1.5 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md text-xs md:text-sm"
@@ -886,22 +962,20 @@ function CompetitionDetails() {
 
             {/* Botón login/logout */}
             {user ? (
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
-              >
-                {isProjector ? (
-                  "🔓 Salir"
-                ) : (
-                  <>
-                    🔓{" "}
-                    <span className="hidden sm:inline">
-                      Cerrar Sesión ({user.username})
-                    </span>
-                    <span className="sm:hidden">Salir</span>
-                  </>
-                )}
-              </button>
+              isWritableAdmin ? (
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  🔓{" "}
+                  <span className="hidden sm:inline">
+                    Cerrar Sesión ({user.username})
+                  </span>
+                  <span className="sm:hidden">Salir</span>
+                </button>
+              ) : (
+                <></>
+              )
             ) : (
               <button
                 onClick={() => setShowLogin(true)}

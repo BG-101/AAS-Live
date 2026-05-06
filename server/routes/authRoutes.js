@@ -180,4 +180,19 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
   }
 });
 
+// ============================================================
+// POST /api/auth/logout-projectors
+// Emite un evento de socket para forzar el cierre de sesión
+// en todas las pantallas con rol Espectador.
+// Solo accesible para SuperAdmin y Delegado.
+// ============================================================
+router.post(
+  "/logout-projectors",
+  auth(["SuperAdmin", "Delegado"]),
+  (req, res) => {
+    req.app.get("socketio").emit("proyector_logout");
+    res.json({ message: "Señal de cierre enviada a todos los proyectores." });
+  },
+);
+
 module.exports = router;

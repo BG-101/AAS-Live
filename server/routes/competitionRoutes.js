@@ -269,6 +269,10 @@ router.delete(
   async (req, res) => {
     try {
       await Competition.findByIdAndUpdate(req.params.id, { isDeleted: true });
+
+      // Notifica a todos los clientes para que redirijan si están dentro
+      req.app.get("socketio").emit("competicion_actualizada", req.params.id);
+
       res.json({ message: "Competición movida a la papelera (Soft Delete)" });
     } catch (err) {
       res.status(500).json({ message: err.message });

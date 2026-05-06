@@ -9,12 +9,13 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { parseCutoff } from "../utils/formatters";
+import { io } from "socket.io-client";
 
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 import CompetitionList from "../components/CompetitionList";
 import { API_URL } from "../utils/api";
+import { parseCutoff } from "../utils/formatters";
 
 // Lista de todos los eventos WCA soportados por el sistema
 const WCA_EVENTS = [
@@ -110,6 +111,18 @@ function Home() {
       .then((res) => setCompetitions(res.data))
       .catch((err) => console.error(err));
   }, [refreshCompetitions]);
+
+  useEffect(() => {
+    const socket = io("https://aas-live.onrender.com", {
+      withCredentials: true,
+    });
+
+    socket.on("competicion_actualizada", () => {
+      setRefreshCompetitions((prev) => prev + 1);
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   // ============================================================
   // HANDLERS DE AUTENTICACIÓN
@@ -343,16 +356,20 @@ function Home() {
 
             {/* Botón de logout (si autenticado) o login (si no) */}
             {user ? (
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
-              >
-                🔓{" "}
-                <span className="hidden sm:inline">
-                  Cerrar Sesión ({user.username})
-                </span>
-                <span className="sm:hidden">Salir</span>
-              </button>
+              isWritableAdmin ? (
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  🔓{" "}
+                  <span className="hidden sm:inline">
+                    Cerrar Sesión ({user.username})
+                  </span>
+                  <span className="sm:hidden">Salir</span>
+                </button>
+              ) : (
+                <></>
+              )
             ) : (
               <button
                 onClick={() => setShowLogin(true)}

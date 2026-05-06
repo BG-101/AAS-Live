@@ -11,7 +11,7 @@
 // ============================================================
 
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
 import { formatTime, formatWCATimesArray } from "../utils/formatters";
@@ -34,6 +34,8 @@ function Projector() {
   // Refs para el WebSocket (almacenan valores sin re-renderizar)
   const eventRef = useRef(event);
   const roundRef = useRef(round);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     eventRef.current = event;
@@ -98,6 +100,16 @@ function Projector() {
 
     socket.on("competicion_actualizada", (compId) => {
       if (compId === id) setRefreshTrigger((prev) => prev + 1);
+    });
+
+    socket.on("proyector_logout", async () => {
+      try {
+        await axios.post(`${API_URL}/api/auth/logout`);
+      } catch {
+        /* silencioso */
+      }
+      // Redirige al inicio independientemente del resultado del logout
+      navigate("/");
     });
 
     return () => socket.disconnect();

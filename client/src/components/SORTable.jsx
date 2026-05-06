@@ -59,7 +59,7 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
     });
 
     socket.on("resultado_actualizado", (data) => {
-      if (data.competitorId === compId) {
+      if (data.competitionId === compId) {
         setRefreshTrigger((prev) => prev + 1);
       }
     });
