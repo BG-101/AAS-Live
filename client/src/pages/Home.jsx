@@ -72,6 +72,9 @@ function Home() {
   // Contador que se incrementa para forzar la recarga de competiciones
   const [refreshCompetitions, setRefreshCompetitions] = useState(0);
 
+  const isWritableAdmin =
+    user?.role === "SuperAdmin" || user?.role === "Delegado";
+
   // ============================================================
   // EFECTO: Verificación de autenticación al cargar la página
   // Consulta al servidor si hay una sesión activa (cookie JWT válida)
