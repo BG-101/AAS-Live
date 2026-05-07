@@ -261,7 +261,7 @@ function Home() {
         await axios.delete(`${API_URL}/api/competitions/${id}`);
         setRefreshCompetitions((prev) => prev + 1);
       } catch (err) {
-        alert(err.response?.data?.message || "Error eliminando");
+        toast(err.response?.data?.message || "Error eliminando.", "error");
       }
     }
   };

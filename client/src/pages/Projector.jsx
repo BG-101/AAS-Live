@@ -109,7 +109,7 @@ function Projector() {
         /* silencioso */
       }
       // Redirige al inicio independientemente del resultado del logout
-      navigate("/");
+      window.location.href = "/";
     });
 
     return () => socket.disconnect();

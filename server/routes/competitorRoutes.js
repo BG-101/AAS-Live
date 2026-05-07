@@ -334,6 +334,10 @@ router.delete(
         isDeleted: true,
       });
 
+      const io = req.app.get("socketio");
+      if (io)
+        io.emit("competidor_actualizado", { competitionId: req.params.compId });
+
       res.json({
         message: `Papelera vaciada. ${deletedCount.deletedCount} competidores eliminados físicamente.`,
       });
