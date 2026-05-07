@@ -135,6 +135,12 @@ function CompetitionDetails() {
   const eventRef = useRef(selectedEvent);
   const roundRef = useRef(selectedRound);
 
+  // Guardar el rol actual para que el WebSocket pueda leerlo
+  const roleRef = useRef(user?.role);
+  useEffect(() => {
+    roleRef.current = user?.role;
+  }, [user]);
+
   // Mantiene los refs sincronizados con el estado
   useEffect(() => {
     eventRef.current = selectedEvent;
@@ -296,6 +302,18 @@ function CompetitionDetails() {
       if (data.competitionId === id) {
         setRefreshCompetitors((prev) => prev + 1);
         setRefreshResults((prev) => prev + 1);
+      }
+    });
+
+    socket.on("proyector_logout", async () => {
+      // Solo borramos la sesión y redirigimos al inicio si la pantalla es de un Espectador
+      if (roleRef.current === "Espectador") {
+        try {
+          await axios.post(`${API_URL}/api/auth/logout`);
+        } catch (e) {
+          // Ignorar silenciosamente si hay error de red
+        }
+        window.location.href = "/";
       }
     });
 

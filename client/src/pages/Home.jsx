@@ -7,7 +7,7 @@
 // - Controles de autenticación (login/logout/registro)
 // ============================================================
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 
@@ -75,6 +75,11 @@ function Home() {
   const isWritableAdmin =
     user?.role === "SuperAdmin" || user?.role === "Delegado";
 
+  const roleRef = useRef(user?.role);
+  useEffect(() => {
+    roleRef.current = user?.role;
+  }, [user]);
+
   // ============================================================
   // EFECTO: Verificación de autenticación al cargar la página
   // Consulta al servidor si hay una sesión activa (cookie JWT válida)
@@ -122,6 +127,17 @@ function Home() {
 
     socket.on("competicion_actualizada", () => {
       setRefreshCompetitions((prev) => prev + 1);
+    });
+
+    socket.on("proyector_logout", async () => {
+      if (roleRef.current === "Espectador") {
+        try {
+          await axios.post(`${API_URL}/api/auth/logout`);
+        } catch (e) {}
+        // Estando ya en Home, en lugar de redirigir, recargamos la página
+        // para que se borre el estado del usuario y vuelva a pedir login
+        window.location.reload();
+      }
     });
 
     return () => socket.disconnect();
