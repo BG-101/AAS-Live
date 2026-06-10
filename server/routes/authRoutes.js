@@ -48,7 +48,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     // Genera un JWT con el id y rol del usuario, válido 48 horas
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: "48h" },
     );
@@ -76,13 +76,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 // Requiere un JWT válido (cualquier rol).
 // ============================================================
 router.get("/me", auth(), async (req, res) => {
-  try {
-    // req.user fue establecido por el middleware auth con el payload del JWT
-    const user = await User.findById(req.user.id).select("-password"); // Excluye la contraseña
-    res.json({ role: user.role, username: user.username });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+  res.json({ role: req.user.role, username: req.user.username });
 });
 
 // ============================================================

@@ -91,7 +91,7 @@ const calculateStats = (times, format) => {
 //   3. DNF (-1) y DNS (-2) van al final
 // ============================================================
 const sortResultsWCA = (results) => {
-  return results.sort((a, b) => {
+  return [...results].sort((a, b) => {
     // Convierte valores especiales a pesos altos para que vayan al final
     // -1 (DNF) → 9999999, -2 (DNS/sin resultado) → 8888888
     const getWeight = (val) => (val > 0 ? val : val === -1 ? 9999999 : 8888888);
@@ -455,7 +455,7 @@ async function calculateSOR(compId, ageGroup = null) {
     const validCount = sorted.filter((r) => r.best > 0).length;
     // Penalización SOR para ausentes/DNF: validCount + 1
     // Penalización F1 para ausentes/DNF: 0 puntos
-    const penaltySOR = validCount + 1;
+    const penaltySOR = allCompetitors.length + 1;
 
     const rankedIds = new Set();
 

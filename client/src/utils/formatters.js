@@ -61,6 +61,20 @@ export const parseTimeInput = (str) => {
   if (["dns", "*", "-2"].includes(cleanStr)) return -2;
   if (cleanStr === "") return 0;
 
+  if (cleanStr.includes(":")) {
+    const colonIdx = cleanStr.indexOf(":");
+    const min = parseInt(cleanStr.slice(0, colonIdx), 10) || 0;
+    const rest = cleanStr.slice(colonIdx + 1);
+    if (rest.includes(".")) {
+      const [secPart, csPart] = rest.split(".");
+      const sec = parseInt(secPart, 10) || 0;
+      const cs = parseInt((csPart ?? "0").padEnd(2, "0").slice(0, 2), 10);
+      return min * 6000 + sec * 100 + cs;
+    }
+    const sec = parseInt(rest.replace(/\D/g, "").slice(0, 2), 10) || 0;
+    return min * 6000 + sec * 100;
+  }
+
   // Si contiene un punto decimal, interpreta como segundos.centésimas
   // Ej: "12.34" → 12.34 * 100 = 1234 centésimas
   if (cleanStr.includes(".")) return Math.round(parseFloat(cleanStr) * 100);
@@ -70,9 +84,9 @@ export const parseTimeInput = (str) => {
   const numStr = cleanStr.replace(/\D/g, "");
   if (numStr.length === 0) return 0;
 
-  let cs = 0,  // Centésimas
-    sec = 0,   // Segundos
-    min = 0;   // Minutos
+  let cs = 0, // Centésimas
+    sec = 0, // Segundos
+    min = 0; // Minutos
 
   if (numStr.length <= 2) {
     // Solo centésimas (ej: "34" → 34cs)
@@ -157,15 +171,15 @@ export const formatWCATimesArray = (times, format) => {
 
   // Comprueba si los 5 intentos están completos (ninguno vacío)
   const isComplete = times.filter((t) => t !== 0).length === 5;
-  let bestIdx = -1,  // Índice del mejor tiempo (se encierra en paréntesis)
-    worstIdx = -1;   // Índice del peor tiempo (se encierra en paréntesis)
+  let bestIdx = -1, // Índice del mejor tiempo (se encierra en paréntesis)
+    worstIdx = -1; // Índice del peor tiempo (se encierra en paréntesis)
 
   if (times.length === 5 && isComplete) {
     // Ordena por valor para encontrar el mejor (índice 0) y peor (índice 4)
     // Los DNF/DNS se tratan como Infinity para que vayan al final
     let validTimes = times.map((t, i) => ({ t: t <= 0 ? Infinity : t, i }));
     validTimes.sort((a, b) => a.t - b.t);
-    bestIdx = validTimes[0].i;  // Mejor tiempo
+    bestIdx = validTimes[0].i; // Mejor tiempo
     worstIdx = validTimes[4].i; // Peor tiempo
   }
 

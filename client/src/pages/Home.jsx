@@ -9,13 +9,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socket";
 
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 import CompetitionList from "../components/CompetitionList";
 import { API_URL } from "../utils/api";
 import { parseCutoff } from "../utils/formatters";
+import { toast } from "../utils/toast";
 
 // Lista de todos los eventos WCA soportados por el sistema
 const WCA_EVENTS = [
@@ -121,9 +122,7 @@ function Home() {
   }, [refreshCompetitions]);
 
   useEffect(() => {
-    const socket = io("https://aas-live.onrender.com", {
-      withCredentials: true,
-    });
+    const socket = createSocket();
 
     socket.on("competicion_actualizada", () => {
       setRefreshCompetitions((prev) => prev + 1);
@@ -326,6 +325,9 @@ function Home() {
         startDate: "",
         endDate: "",
         competitorLimit: 50,
+        sorEnabled: false,
+        ageGroupsEnabled: false,
+        scoringSystem: "sor",
       });
       setEventConfigs({});
     } catch (error) {

@@ -13,7 +13,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socket";
 
 import LoginModal from "../components/LoginModal";
 import AuditModal from "../components/AuditModal";
@@ -260,9 +260,7 @@ function CompetitionDetails() {
   // - "competicion_actualizada": cambió la configuración de la competición
   // ============================================================
   useEffect(() => {
-    const socket = io("https://aas-live.onrender.com", {
-      withCredentials: true,
-    });
+    const socket = createSocket();
 
     socket.on("resultado_actualizado", (data) => {
       // Solo refresca si es para esta competición, evento y ronda
@@ -449,6 +447,8 @@ function CompetitionDetails() {
         `${API_URL}/api/competitors/empty-trash/${id}`,
       );
       alert(res.data.message);
+      setRefreshCompetitors((prev) => prev + 1);
+      setRefreshCompetitions((prev) => prev + 1);
     } catch (err) {
       alert(err.response?.data?.message || "Error al vaciar la papelera");
     }
@@ -837,7 +837,6 @@ function CompetitionDetails() {
         onClose={() => setShowLogs(false)}
         auditLogs={auditLogs}
         formatTime={formatTime}
-        formatWCATimesArray={formatWCATimesArray}
       />
       <RoundSettingsModal
         show={showSettings}
@@ -968,7 +967,7 @@ function CompetitionDetails() {
             )}
 
             {/* Enlace al proyector (abre en nueva pestaña) */}
-            {user && (
+            {user && selectedEvent !== "__SOR__" && (
               <Link
                 to={`/projector/${id}/${selectedEvent}/${selectedRound}`}
                 target="_blank"

@@ -155,6 +155,7 @@ router.post(
         status: "In Progress",
         advancementType: "percent", // Por defecto avanza un porcentaje
         advancementValue: 75, // Por defecto avanza el 75%
+        format: currentRound.format || "a",
       });
 
       await comp.save();

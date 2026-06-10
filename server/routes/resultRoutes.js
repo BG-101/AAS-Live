@@ -6,6 +6,7 @@
 // ============================================================
 
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Result = require("../models/Result");
 const Competition = require("../models/Competition");
@@ -99,17 +100,26 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     });
   }
 
-  // --- Busca la configuración de la ronda para determinar el formato ---
-  const comp = await Competition.findById(competitionId);
-  const roundConfig = comp.rounds.find(
-    (r) => r.event === event && r.roundNumber === roundNum,
-  );
-  const format = roundConfig ? roundConfig.format : "a"; // "a" por defecto
-
-  // Calcula best y average según el formato de la ronda
-  const { best, average } = calculateStats(times, format);
+  if (
+    !mongoose.Types.ObjectId.isValid(competitionId) ||
+    !mongoose.Types.ObjectId.isValid(competitorId)
+  ) {
+    return res
+      .status(400)
+      .json({ message: "ID de competición o competidor inválido." });
+  }
 
   try {
+    const comp = await Competition.findById(competitionId);
+    if (!comp)
+      return res.status(404).json({ message: "Competición no encontrada." });
+
+    const roundConfig = comp.rounds.find(
+      (r) => r.event === event && r.roundNumber === roundNum,
+    );
+    const format = roundCofig ? roundConfig.format : "a";
+    const { best, average } = calculateStats(times, format);
+
     // Busca si ya existe un resultado y actualízalo o créalo
     let result = await Result.findOne({
       competition: competitionId,
@@ -154,7 +164,9 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("Error guardando tiempos:", err);
-    return res.status(500).json({ message: "Error interno del servidor al guardar." });
+    return res
+      .status(500)
+      .json({ message: "Error interno del servidor al guardar." });
   }
 
   // Calcula y emite los resultados actualizados directamente por WebSocket,
@@ -198,7 +210,11 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     console.error("Error generando payload WebSocket:", socketErr);
     const io = req.app.get("socketio");
     if (io) {
-      io.emit("resultado_actualizado", { competitionId, event, round: roundNum });
+      io.emit("resultado_actualizado", {
+        competitionId,
+        event,
+        round: roundNum,
+      });
     }
   }
 });

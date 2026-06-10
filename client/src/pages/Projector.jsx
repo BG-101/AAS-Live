@@ -13,7 +13,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socket";
 import { formatTime, formatWCATimesArray } from "../utils/formatters";
 import { API_URL } from "../utils/api";
 
@@ -81,9 +81,7 @@ function Projector() {
   // Escucha cambios de resultados y configuración de la competición.
   // ============================================================
   useEffect(() => {
-    const socket = io("https://aas-live.onrender.com", {
-      withCredentials: true,
-    });
+    const socket = createSocket();
 
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
@@ -164,7 +162,7 @@ function Projector() {
         // Espera 8 segundos al llegar al fondo
         setTimeout(() => {
           const currentRoundObj = competition?.rounds.find(
-            (r) => r.event === event && r.roundNumber.toString() === round,
+            (r) => r.event === event && r.roundNumber === roundNum,
           );
           const isFinished = currentRoundObj?.status === "Finished";
           const isFinalRound =

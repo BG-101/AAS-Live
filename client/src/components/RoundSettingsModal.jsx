@@ -98,7 +98,7 @@ export default function RoundSettingsModal({
             <input
               type="number"
               min="0"
-              max="100"
+              max={settingsData.type === "percent" ? "100" : undefined}
               className="w-full p-2 border rounded"
               value={settingsData.value}
               onChange={(e) =>
