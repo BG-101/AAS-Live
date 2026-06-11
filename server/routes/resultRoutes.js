@@ -117,7 +117,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     const roundConfig = comp.rounds.find(
       (r) => r.event === event && r.roundNumber === roundNum,
     );
-    const format = roundCofig ? roundConfig.format : "a";
+    const format = roundConfig ? roundConfig.format : "a";
     const { best, average } = calculateStats(times, format);
 
     // Busca si ya existe un resultado y actualízalo o créalo
