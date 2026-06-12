@@ -82,7 +82,9 @@ router.get("/series/:seriesName", async (req, res) => {
       const compId = comp._id.toString();
       const isF1 = (comp.scoringSystem || "sor") === "f1";
       // SOR: penalización máxima. F1: 0 puntos (no participó, no puntúa)
-      const penalty = isF1 ? 0 : (sor.rankings.length + 1) * comp.events.length;
+      const penalty = isF1
+        ? 0
+        : (sor.absentPenalty ?? (sor.rankings.length + 1) * comp.events.length);
       Object.values(masterMap).forEach((entry) => {
         if (entry.perComp[compId] === undefined) {
           entry.totalScore += penalty;
