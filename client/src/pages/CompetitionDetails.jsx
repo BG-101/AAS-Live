@@ -22,6 +22,7 @@ import ResultsTable from "../components/ResultsTable";
 import TimeEntryForm from "../components/TimeEntryForm";
 import SORTable from "../components/SORTable";
 import CompetitorEditorModal from "../components/CompetitorEditorModal";
+import RegistrationPanel from "../components/RegistrationPanel";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 import { exportResultsToCSV } from "../utils/exportCsv";
@@ -124,6 +125,9 @@ function CompetitionDetails() {
   const [selectedAgeGroup, setSelectedAgeGroup] = useState(null);
 
   const [showCompetitorEditor, setShowCompetitorEditor] = useState(false);
+
+  const [showRegistrationPanel, setShowRegistrationPanel] = useState(false);
+  const [pendingRegistrationBadge, setPendingRegistrationsBadge] = useState(0);
 
   // --- Refs para enfocar campos y navegación con teclado ---
   const inputRefs = useRef([]); // Refs de los inputs de tiempos (T1, T2, T3...)
@@ -312,6 +316,12 @@ function CompetitionDetails() {
           // Ignorar silenciosamente si hay error de red
         }
         window.location.href = "/";
+      }
+    });
+
+    socket.on("nueva_inscripcion", (data) => {
+      if (data.competitionId === id) {
+        setPendingRegistrationsBadge((prev) => prev + 1);
       }
     });
 
@@ -857,6 +867,13 @@ function CompetitionDetails() {
           setRefreshResults((prev) => prev + 1);
         }}
       />
+      <RegistrationPanel
+        show={showRegistrationPanel}
+        onClose={() => setShowRegistrationPanel(false)}
+        competitionId={id}
+        competitionEvents={competition.events}
+        user={user}
+      />
 
       {/* === CABECERA === */}
       <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
@@ -948,22 +965,35 @@ function CompetitionDetails() {
             )}
 
             {isWritableAdmin && (
-              <button
-                onClick={() => setShowCompetitorEditor(true)}
-                className="bg-purple-800 text-purple-100 px-3 py-1.5 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md text-xs md:text-sm"
-              >
-                ✏️ <span className="hidden sm:inline">Editar Competidores</span>
-              </button>
-            )}
-
-            {/* Botón de logs de auditoría */}
-            {isWritableAdmin && (
-              <button
-                onClick={handleOpenLogs}
-                className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
-              >
-                📜 <span className="hidden sm:inline">Logs</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setShowCompetitorEditor(true)}
+                  className="bg-purple-800 text-purple-100 px-3 py-1.5 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  ✏️{" "}
+                  <span className="hidden sm:inline">Editar Competidores</span>
+                </button>
+                <button
+                  onClick={handleOpenLogs}
+                  className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
+                >
+                  📜 <span className="hidden sm:inline">Logs</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRegistrationPanel(true);
+                    setPendingRegistrationsBadge(0);
+                  }}
+                  className="relative bg-almeria-dark text-almeria-light px-3 py-1.5 rounded border border-gray-600 hover:bg-gray-700 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  📋 <span className="hidden sm:inline">Inscripciones</span>
+                  {pendingRegistrationBadge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                      {pendingRegistrationBadge}
+                    </span>
+                  )}
+                </button>
+              </>
             )}
 
             {/* Enlace al proyector (abre en nueva pestaña) */}
