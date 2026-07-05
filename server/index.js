@@ -27,6 +27,7 @@ const sorRoutes = require("./routes/sorRoutes");
 
 // --- Creación de la aplicación Express ---
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3001;
 
 // ============================================================

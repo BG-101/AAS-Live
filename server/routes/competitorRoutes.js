@@ -154,27 +154,35 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       });
     }
 
-    // Calcula el siguiente número de competidor (auto-incremental)
-    const lastCompetitor = await Competitor.findOne({
-      competition: compId,
-    }).sort({ competitorNumber: -1 }); // El de número más alto
-    const nextNumber =
-      lastCompetitor && lastCompetitor.competitorNumber
-        ? lastCompetitor.competitorNumber + 1
-        : 1; // Si no hay ninguno, empieza en 1
+    let newCompetitor;
+    for (let attempt = 0; attempt <= 4; attempt++) {
+      const last = await Competitor.findOne({ competition: compId })
+        .sort({ competitorNumber: -1 })
+        .lean();
+      const nextNumber = (last?.competitorNumber ?? 0) + 1;
 
-    // Crea el documento del competidor
-    const competitor = new Competitor({
-      competitorNumber: nextNumber,
-      name: req.body.name.trim(),
-      wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
-      age: req.body.age || null,
-      locality: req.body.locality ? req.body.locality.trim() : "",
-      competition: compId,
-      events: req.body.events, // Array de eventos en los que participa
-    });
-
-    const newCompetitor = await competitor.save();
+      try {
+        newCompetitor = await new Competitor({
+          competitorNumber: nextNumber,
+          name: req.body.name.trim(),
+          wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
+          age: req.body.age || null,
+          locality: req.body.locality ? req.body.locality.trim() : "",
+          competition: compId,
+          events: req.body.events,
+        }).save();
+        break;
+      } catch (saveErr) {
+        if (saveErr.code === 11000 && saveErr.keyPattern?.competitorNumber) {
+          if (attempt === 4)
+            throw new Error(
+              "Conflicto de número de competidor tras 5 intentos.",
+            );
+          continue;
+        }
+        throw saveErr;
+      }
+    }
 
     // ============================================================
     // AUTO-INSCRIPCIÓN EN SERIE
@@ -213,25 +221,54 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
               continue;
             }
 
-            // Número de competidor secuencial de la competición destino
-            const lastInTarget = await Competitor.findOne({
-              competition: seriesComp._id,
-            }).sort({ competitorNumber: -1 });
-            const nextNum = lastInTarget?.competitorNumber
-              ? lastInTarget.competitorNumber + 1
-              : 1;
+            for (let attempt = 0; attempt <= 2; attempt++) {
+              const lastInTarget = await Competitor.findOne({
+                competition: seriesComp._id,
+              })
+                .sort({ competitorNumber: -1 })
+                .lean();
+              const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
+              try {
+                const mirrored = new Competitor({
+                  competitorNumber: nextNum,
+                  name: req.body.name.trim(),
+                  wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
+                  age: req.body.age || null,
+                  locality: req.body.locality ? req.body.locality.trim() : "",
+                  competition: seriesComp._id,
+                  events: req.body.events,
+                });
+                await mirrored.save();
+                const io = req.app.get("socketio");
+                if (io)
+                  io.emit("competidor_actualizado", {
+                    competitionId: seriesComp._id.toString(),
+                  });
+                break;
+              } catch (innerErr) {
+                if (
+                  innerErr.code === 11000 &&
+                  innerErr.keyPattern?.competitorNumber
+                ) {
+                  if (attempt === 2) {
+                    console.warn(
+                      `Número duplicado en serie "${seriesComp.name}" tras 3 intentos, omitido.`,
+                    );
+                    break;
+                  }
+                  continue;
+                }
+                throw innerErr;
+              }
+            }
 
-            const mirrored = new Competitor({
-              competitorNumber: nextNum,
-              name: req.body.name.trim(),
-              wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
-              age: req.body.age || null,
-              locality: req.body.locality ? req.body.locality.trim() : "",
-              competition: seriesComp._id,
-              events: req.body.events,
-            });
-
-            await mirrored.save();
+            // Notifica a los clientes de esa competición de la serio
+            const io = req.app.get("socketio");
+            if (io) {
+              io.emit("competidor_actualizado", {
+                competitionId: seriesComp._id.toString(),
+              });
+            }
           } catch (innerErr) {
             console.error(
               `Auto-inscripción fallida en "${seriesComp.name}":`,
@@ -326,6 +363,10 @@ router.delete(
         isDeleted: true,
       });
 
+      const io = req.app.get("socketio");
+      if (io)
+        io.emit("competidor_actualizado", { competitionId: req.params.compId });
+
       res.json({
         message: `Papelera vaciada. ${deletedCount.deletedCount} competidores eliminados físicamente.`,
       });
@@ -343,7 +384,7 @@ router.delete(
 router.put(
   "/:id",
   validateObjectId(),
-  auth(["SuperAdmin"]),
+  auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
       const { name, wcaId, age, locality, events } = req.body;
@@ -377,6 +418,13 @@ router.put(
         },
         { new: true },
       );
+
+      // Notifica a los clientes para que recarguen la lista de competidores
+      const io = req.app.get("socketio");
+      if (io)
+        io.emit("competidor_actualizado", {
+          competitionId: comp.competition.toString(),
+        });
 
       res.json(updated);
     } catch (err) {
@@ -418,6 +466,14 @@ router.patch(
       }
 
       await comp.save();
+
+      const io = req.app.get("socketio");
+      if (io) {
+        io.emit("competidor_actualizado", {
+          competitionId: comp.competition.toString(),
+        });
+      }
+
       res.json(comp);
     } catch (err) {
       res.status(500).json({ message: err.message });

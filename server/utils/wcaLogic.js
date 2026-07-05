@@ -91,7 +91,7 @@ const calculateStats = (times, format) => {
 //   3. DNF (-1) y DNS (-2) van al final
 // ============================================================
 const sortResultsWCA = (results) => {
-  return results.sort((a, b) => {
+  return [...results].sort((a, b) => {
     // Convierte valores especiales a pesos altos para que vayan al final
     // -1 (DNF) → 9999999, -2 (DNS/sin resultado) → 8888888
     const getWeight = (val) => (val > 0 ? val : val === -1 ? 9999999 : 8888888);
@@ -197,7 +197,7 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
 
   const validCompetitors = validPrevResults.filter((r) => r.best > 0).length;
 
-  if (prevResults.advancementType === "ranking") {
+  if (prevRound.advancementType === "ranking") {
     return Math.min(prevRound.advancementValue, validCompetitors);
   } else if (prevRound.advancementType === "percent") {
     const prevTotal = await getEligibleCountByAgeGroup(
@@ -419,6 +419,8 @@ async function calculateSOR(compId, ageGroup = null) {
     resultsByEvent[r.event].push(r);
   });
 
+  let totalAbsentPenalty = 0;
+
   for (const event of events) {
     // Usa la ronda más avanzada disponible:
     // 1. La ronda "Finished" de mayor número (preferida)
@@ -451,36 +453,33 @@ async function calculateSOR(compId, ageGroup = null) {
 
     const sorted = sortResultsWCA(roundResults);
 
-    // Número de competidores con resultado válido (best > 0)
     const validCount = sorted.filter((r) => r.best > 0).length;
-    // Penalización SOR para ausentes/DNF: validCount + 1
-    // Penalización F1 para ausentes/DNF: 0 puntos
-    const penaltySOR = validCount + 1;
+    const penaltySOR = validCount + 1; // DNF/DNS: tras los válidos
 
     const rankedIds = new Set();
+    let maxAssignedScore = 0;
 
     sorted.forEach((r, index) => {
       const cid = r.competitor._id.toString();
       let score;
-
       if (isF1) {
-        // F1: puntos por posición si tiempo válido, 0 si DNF/DNS
         score = r.best > 0 ? (F1_POINTS[index] ?? 0) : 0;
       } else {
-        // SOR clásico: rango ordinal, penalización si inválido
         score = r.best > 0 ? index + 1 : penaltySOR;
+        if (score > maxAssignedScore) maxAssignedScore = score;
       }
-
       competitorMap[cid].eventRanks[event] = score;
       competitorMap[cid].totalScore += score;
       rankedIds.add(cid);
     });
 
-    // Competidores que no llegaron a esta ronda
+    // Ausente = exactamente 1 más que el útlimo participante (sea válido o DNF)
+    const absentScore = isF1 ? 0 : maxAssignedScore + 1;
+    totalAbsentPenalty += absentScore;
+
     allCompetitors.forEach((c) => {
       const cid = c._id.toString();
       if (!rankedIds.has(cid)) {
-        const absentScore = isF1 ? 0 : penaltySOR;
         competitorMap[cid].eventRanks[event] = absentScore;
         competitorMap[cid].totalScore += absentScore;
       }
@@ -493,7 +492,12 @@ async function calculateSOR(compId, ageGroup = null) {
     isF1 ? b.totalScore - a.totalScore : a.totalScore - b.totalScore,
   );
 
-  return { rankings, events, scoringSystem: comp.scoringSystem || "sor" };
+  return {
+    rankings,
+    events,
+    scoringSystem: comp.scoringSystem || "sor",
+    absentPenalty: totalAbsentPenalty,
+  };
 }
 
 module.exports = {

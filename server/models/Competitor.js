@@ -60,4 +60,9 @@ competitorSchema.index({ competition: 1, events: 1 });
 // Índice para soft delete: filtrar borrados es una condición en casi todas las queries
 competitorSchema.index({ competition: 1, isDeleted: 1 });
 
+competitorSchema.index(
+  { competition: 1, competitorNumber: 1 },
+  { unique: true },
+);
+
 module.exports = mongoose.model("Competitor", competitorSchema);

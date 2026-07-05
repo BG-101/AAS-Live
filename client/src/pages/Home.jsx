@@ -7,14 +7,16 @@
 // - Controles de autenticación (login/logout/registro)
 // ============================================================
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { parseCutoff } from "../utils/formatters";
+import { createSocket } from "../utils/socket";
 
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 import CompetitionList from "../components/CompetitionList";
 import { API_URL } from "../utils/api";
+import { parseCutoff } from "../utils/formatters";
+import { toast } from "../utils/toast";
 
 // Lista de todos los eventos WCA soportados por el sistema
 const WCA_EVENTS = [
@@ -71,6 +73,14 @@ function Home() {
   // Contador que se incrementa para forzar la recarga de competiciones
   const [refreshCompetitions, setRefreshCompetitions] = useState(0);
 
+  const isWritableAdmin =
+    user?.role === "SuperAdmin" || user?.role === "Delegado";
+
+  const roleRef = useRef(user?.role);
+  useEffect(() => {
+    roleRef.current = user?.role;
+  }, [user]);
+
   // ============================================================
   // EFECTO: Verificación de autenticación al cargar la página
   // Consulta al servidor si hay una sesión activa (cookie JWT válida)
@@ -110,6 +120,27 @@ function Home() {
       .then((res) => setCompetitions(res.data))
       .catch((err) => console.error(err));
   }, [refreshCompetitions]);
+
+  useEffect(() => {
+    const socket = createSocket();
+
+    socket.on("competicion_actualizada", () => {
+      setRefreshCompetitions((prev) => prev + 1);
+    });
+
+    socket.on("proyector_logout", async () => {
+      if (roleRef.current === "Espectador") {
+        try {
+          await axios.post(`${API_URL}/api/auth/logout`);
+        } catch (e) {}
+        // Estando ya en Home, en lugar de redirigir, recargamos la página
+        // para que se borre el estado del usuario y vuelva a pedir login
+        window.location.reload();
+      }
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   // ============================================================
   // HANDLERS DE AUTENTICACIÓN
@@ -245,7 +276,7 @@ function Home() {
         await axios.delete(`${API_URL}/api/competitions/${id}`);
         setRefreshCompetitions((prev) => prev + 1);
       } catch (err) {
-        alert(err.response?.data?.message || "Error eliminando");
+        toast(err.response?.data?.message || "Error eliminando.", "error");
       }
     }
   };
@@ -294,6 +325,9 @@ function Home() {
         startDate: "",
         endDate: "",
         competitorLimit: 50,
+        sorEnabled: false,
+        ageGroupsEnabled: false,
+        scoringSystem: "sor",
       });
       setEventConfigs({});
     } catch (error) {
@@ -330,31 +364,40 @@ function Home() {
           />
 
           {/* Controles de autenticación (esquina superior derecha) */}
-          <div className="absolute top-8 right-8 flex gap-4">
+          <div className="absolute top-4 right-4 md:top-8 md:right-8 flex gap-2 flex-wrap justify-end max-w-xs md:max-w-none">
             {/* Botón de nuevo usuario (solo SuperAdmin) */}
             {user?.role === "SuperAdmin" && (
               <button
                 onClick={() => setShowRegister(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md"
+                className="bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
               >
-                + Nuevo Usuario
+                + <span className="hidden sm:inline">Nuevo Usuario</span>
               </button>
             )}
 
             {/* Botón de logout (si autenticado) o login (si no) */}
             {user ? (
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 text-white px-4 py-2 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md"
-              >
-                🔓 Cerrar Sesión ({user.username})
-              </button>
+              isWritableAdmin ? (
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  🔓{" "}
+                  <span className="hidden sm:inline">
+                    Cerrar Sesión ({user.username})
+                  </span>
+                  <span className="sm:hidden">Salir</span>
+                </button>
+              ) : (
+                <></>
+              )
             ) : (
               <button
                 onClick={() => setShowLogin(true)}
-                className="bg-gray-800 text-gray-300 px-4 py-2 rounded border border-gray-600 hover:bg-almeria-orange hover:text-white transition"
+                className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded border border-gray-600 hover:bg-almeria-orange hover:text-white transition text-xs md:text-sm"
               >
-                🔒 Acceso Organización
+                🔒 <span className="hidden sm:inline">Acceso Organización</span>
+                <span className="sm:hidden">Acceder</span>
               </button>
             )}
           </div>
@@ -730,7 +773,7 @@ function Home() {
                 <p className="text-gray-400">
                   {user?.role === "Delegado"
                     ? `¡Hola ${user.username}! Selecciona un torneo para gestionar tiempos.`
-                    : "Selecciona un torneo a la derecha para ver los resultados en vivo."}
+                    : "Selecciona un torneo a continuación para ver los resultados en vivo."}
                 </p>
               </div>
             )}

@@ -12,15 +12,8 @@ import React from "react";
  * @param {Function} onClose - Callback para cerrar el modal
  * @param {Array} auditLogs - Array de registros de auditoría del servidor
  * @param {Function} formatTime - Función para formatear un tiempo individual
- * @param {Function} formatWCATimesArray - Función para formatear array de tiempos WCA
  */
-export default function AuditModal({
-  show,
-  onClose,
-  auditLogs,
-  formatTime,
-  formatWCATimesArray,
-}) {
+export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
   if (!show) return null;
 
   return (

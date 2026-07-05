@@ -7,8 +7,10 @@
 const express = require("express");
 const router = express.Router();
 const Competition = require("../models/Competition");
+const Competitor = require("../models/Competitor");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
+const Result = require("../models/Result");
 
 // ============================================================
 // GET /api/competitions
@@ -41,7 +43,14 @@ router.get("/:id", validateObjectId(), async (req, res) => {
       isDeleted: { $ne: true },
     });
     if (!competition) return res.status(404).json({ message: "No encontrada" });
-    res.json(competition);
+
+    // Cuenta los competidores activos de esta competición
+    const competitorCount = await Competitor.countDocuments({
+      competition: req.params.id,
+      isDeleted: { $ne: true },
+    });
+
+    res.json({ ...competition.toObject(), competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -146,6 +155,7 @@ router.post(
         status: "In Progress",
         advancementType: "percent", // Por defecto avanza un porcentaje
         advancementValue: 75, // Por defecto avanza el 75%
+        format: currentRound.format || "a",
       });
 
       await comp.save();
@@ -260,7 +270,38 @@ router.delete(
   async (req, res) => {
     try {
       await Competition.findByIdAndUpdate(req.params.id, { isDeleted: true });
+
+      // Notifica a todos los clientes para que redirijan si están dentro
+      req.app.get("socketio").emit("competicion_actualizada", req.params.id);
+
       res.json({ message: "Competición movida a la papelera (Soft Delete)" });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
+
+// ============================================================
+// DELETE /api/competitions/:id/round-results-after
+// Elimina los resultados de todas las rondas posteriores a
+// roundNumber para un evento dado. Se llama cuando el admin
+// reabre una ronda y confirma que quiere limpiar datos inconsistentes.
+// ============================================================
+router.delete(
+  "/:id/round-results-after",
+  validateObjectId(),
+  auth(["SuperAdmin", "Delegado"]),
+  async (req, res) => {
+    const { event, fromRound } = req.body;
+    try {
+      await Result.deleteMany({
+        competition: req.params.id,
+        event,
+        round: { $gt: fromRound },
+      });
+
+      req.app.get("socketio").emit("competicion_actualizada", req.params.id);
+      res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {
       res.status(500).json({ message: err.message });
     }

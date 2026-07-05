@@ -11,9 +11,9 @@
 // ============================================================
 
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socket";
 import { formatTime, formatWCATimesArray } from "../utils/formatters";
 import { API_URL } from "../utils/api";
 
@@ -34,6 +34,8 @@ function Projector() {
   // Refs para el WebSocket (almacenan valores sin re-renderizar)
   const eventRef = useRef(event);
   const roundRef = useRef(round);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     eventRef.current = event;
@@ -79,7 +81,7 @@ function Projector() {
   // Escucha cambios de resultados y configuración de la competición.
   // ============================================================
   useEffect(() => {
-    const socket = io(API_URL, { withCredentials: true });
+    const socket = createSocket();
 
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
@@ -96,6 +98,16 @@ function Projector() {
 
     socket.on("competicion_actualizada", (compId) => {
       if (compId === id) setRefreshTrigger((prev) => prev + 1);
+    });
+
+    socket.on("proyector_logout", async () => {
+      try {
+        await axios.post(`${API_URL}/api/auth/logout`);
+      } catch {
+        /* silencioso */
+      }
+      // Redirige al inicio independientemente del resultado del logout
+      window.location.href = "/";
     });
 
     return () => socket.disconnect();
@@ -150,7 +162,7 @@ function Projector() {
         // Espera 8 segundos al llegar al fondo
         setTimeout(() => {
           const currentRoundObj = competition?.rounds.find(
-            (r) => r.event === event && r.roundNumber.toString() === round,
+            (r) => r.event === event && r.roundNumber === roundNum,
           );
           const isFinished = currentRoundObj?.status === "Finished";
           const isFinalRound =
