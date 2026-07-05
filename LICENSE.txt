@@ -1,0 +1,58 @@
+Licencia MIT Modificada con Atribución Obligatoria
+
+Copyright (c) 2025 Marco Criado Gómez
+
+Por la presente se concede permiso, de forma gratuita, a cualquier persona que
+obtenga una copia de este software y de los archivos de documentación asociados
+(el "Software"), para utilizar el Software sin restricción, incluyendo sin
+limitación los derechos de usar, copiar, modificar, fusionar, publicar,
+distribuir, sublicenciar y/o vender copias del Software, y para permitir a las
+personas a las que se les proporcione el Software hacer lo mismo, sujeto a las
+siguientes condiciones:
+
+1. ATRIBUCIÓN OBLIGATORIA
+
+    Cualquier uso, copia, modificación o distribución del Software, incluyendo
+    versiones personalizadas, forks o trabajos derivados, deberá:
+
+    a) Conservar este aviso de copyright y esta licencia en su totalidad en
+       todas las copias o partes sustanciales del Software.
+
+    b) Incluir una mención visible y clara, en la documentación, pantalla de
+       "Acerca de", pie de página, README o interfaz de la aplicación derivada,
+       que indique:
+
+       "Basado en AAS Live, creado por Marco Criado Gómez"
+       (o texto equivalente que identifique inequívocamente ambos: el nombre
+       del proyecto original "AAS Live" y su autor "Marco Criado Gómez")
+
+    c) Esta atribución no podrá ser eliminada, ocultada, ni minimizada de forma
+       que no sea razonablemente visible para el usuario final de la aplicación
+       derivada.
+
+2. PERMISOS
+
+    Se permite expresamente:
+    - Crear versiones personalizadas para otras asociaciones, clubes o eventos
+      de speedcubing (u otros propósitos).
+    - Modificar, adaptar y extender el código fuente.
+    - Uso comercial y no comercial.
+    - Distribución de versiones modificadas, bajo los mismos términos de
+      atribución.
+
+3. SIN GARANTÍA
+
+    EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA
+    O IMPLÍCITA, INCLUYENDO PERO NO LIMITADO A GARANTÍAS DE COMERCIALIZACIÓN,
+    IDONEIDAD PARA UN PROPÓSITO PARTICULAR Y NO INFRACCIÓN. EN NINGÚN CASO LOS
+    AUTORES O TITULARES DEL COPYRIGHT SERÁN RESPONSABLES DE NINGUNA RECLAMACIÓN,
+    DAÑO U OTRA RESPONSABILIDAD, YA SEA EN UNA ACCIÓN DE CONTRATO, AGRAVIO O
+    CUALQUIER OTRO MOTIVO, DERIVADA DE, FUERA DE O EN CONEXIÓN CON EL SOFTWARE O
+    EL USO U OTRO TIPO DE ACCIONES EN EL SOFTWARE.
+
+4. MARCA
+
+    El nombre "AAS Live" y los logos asociados a la Asociación Almeriense de
+    Speedcubing no están cubiertos por esta licencia de código y no pueden
+    usarse para presentar una versión derivada como si fuese el proyecto
+    oficial de dicha asociación, salvo autorización expresa.
