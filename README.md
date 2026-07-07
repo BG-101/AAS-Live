@@ -322,3 +322,9 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 ---
 
 _Desarrollado para la Asociación Almeriense de Speedcubing._
+
+---
+
+## Licencia
+
+Este proyecto está bajo Licencia MIT Modificada con Atribución Obligatoria. Puedes usar, modificar y distribuir el código, incluso en versiones personalizadas para otros clubes o eventos, siempre que mantengas la mención a **AAS Live** y a su creador, **Marco Criado Gómez**. Ver [LICENSE](./LICENSE) para el texto completo.

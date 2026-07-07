@@ -53,27 +53,29 @@ router.post(
       if (!name?.trim())
         return res.status(400).json({ message: "Nombre requerido." });
 
-      // Deduplicación por ID de respuesta del formulario
-      if (formResponseId) {
-        const existing = await Registration.findOne({
-          competition: req.params.compid,
-          formResponseId,
+      let reg;
+      try {
+        reg = await Registration.create({
+          competition: req.params.compId,
+          name: name.trim(),
+          wcaId: wcaId?.trim() || "",
+          age: age ? Number(age) : null,
+          locality: locality?.trim() || "",
+          email: email?.trim() || "",
+          events: Array.isArray(events) ? events : [],
+          formResponseId: formResponseId || null,
+          rawData: rawData || req.body,
         });
-        if (existing)
-          return res.json({ message: "Ya registrado.", id: existing._id });
+      } catch (createErr) {
+        if (createErr.code === 11000) {
+          const dup = await Registration.findOne({
+            competition: req.params.compId,
+            formResponseId,
+          });
+          return res.json({ message: "Ya registrado.", id: dup?._id });
+        }
+        throw createErr;
       }
-
-      const reg = await Registration.create({
-        competition: req.params.compId,
-        name: name.trim(),
-        wcaId: wcaId?.trim() || "",
-        age: age ? Number(age) : null,
-        locality: locality?.trim() || "",
-        email: email?.trim() || "",
-        events: Array.isArray(events) ? events : [],
-        formResponseId: formResponseId || null,
-        rawData: rawData || req.body,
-      });
 
       req.app
         .get("socketio")
@@ -165,12 +167,10 @@ router.patch(
         isDeleted: { $ne: true },
       });
       if (dup)
-        return res
-          .status(400)
-          .json({
-            message:
-              "Ya existe un competidor con ese nombre en esta competición.",
-          });
+        return res.status(400).json({
+          message:
+            "Ya existe un competidor con ese nombre en esta competición.",
+        });
 
       // Mismo retry loop que en competitorRoutes
       let newCompetitor;
@@ -205,12 +205,35 @@ router.patch(
       reg.approvedBy = req.user?.username || "Desconocido";
       await reg.save();
 
-      req.app
-        .get("socketio")
-        ?.emit("competidor_actualizado", {
-          competitionId: reg.competition.toString(),
-        });
+      req.app.get("socketio")?.emit("competidor_actualizado", {
+        competitionId: reg.competition.toString(),
+      });
       res.json({ registration: reg, competitor: newCompetitor });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
+
+// PATCH /api/registrations/:id/reject
+router.patch(
+  "/:id/reject",
+  validateObjectId(),
+  auth(["SuperAdmin", "Delegado"]),
+  async (req, res) => {
+    try {
+      const reg = await Registration.findByIdAndUpdate(
+        req.params.id,
+        {
+          status: "rejected",
+          rejectedAt: new Date(),
+          rejectedBy: req.user?.username || "Desconocido",
+          notes: req.body.notes || "",
+        },
+        { new: true },
+      );
+      if (!reg) return res.status(404).json({ message: "No encontrada." });
+      res.json(reg);
     } catch (err) {
       res.status(500).json({ message: err.message });
     }

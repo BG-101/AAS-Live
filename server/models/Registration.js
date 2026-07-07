@@ -23,6 +23,7 @@ const registrationSchema = new mongoose.Schema({
   approvedAt: { type: Date },
   approvedBy: { type: String, default: "" },
   rejectedAt: { type: Date },
+  rejectedBy: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now },
 });
 

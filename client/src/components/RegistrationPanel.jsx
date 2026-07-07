@@ -42,7 +42,7 @@ export default function RegistrationPanel({
   const [showManual, setShowManual] = useState(false);
   const [manualForm, setManualForm] = useState(EMPTY_FORM);
 
-  const webhookUrl = `${window.location.origin}/api/registrations/webhook/${competitionId}`;
+  const webhookUrl = `${API_URL || window.location.origin}/api/registrations/webhook/${competitionId}`;
 
   const load = async () => {
     setLoading(true);
@@ -127,7 +127,8 @@ export default function RegistrationPanel({
     e.preventDefault();
     try {
       await axios.post(
-        `${API_URL}/api/registrations/manual/${competitionId}`.manualForm,
+        `${API_URL}/api/registrations/manual/${competitionId}`,
+        manualForm,
       );
       toast("Inscripción manual añadida", "success");
       setManualForm(EMPTY_FORM);
@@ -139,8 +140,8 @@ export default function RegistrationPanel({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90-vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex justify-center items-start pt-6 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col">
         {/* Header */}
         <div className="p-4 border-b flex justify-between items-center bg-gray-100 rounded-t-lg shrink-0">
           <div>
@@ -363,6 +364,7 @@ export default function RegistrationPanel({
                       <p className="text-[10px] text-gray-400 mt-1">
                         {new Date(reg.createdAt).toLocaleString("es-ES")}
                         {reg.approvedBy && ` · Aprobado por ${reg.approvedBy}`}
+                        {reg.rejectedBy && ` · Rechazado por ${reg.rejectedBy}`}
                       </p>
                     </div>
 
@@ -479,7 +481,7 @@ export default function RegistrationPanel({
                         checked={manualForm.events.includes(ev)}
                         onChange={(e) => {
                           const evs = e.target.checked
-                            ? [...manualForm.events.ev]
+                            ? [...manualForm.events, ev]
                             : manualForm.events.filter((x) => x !== ev);
                           setManualForm({ ...manualForm, events: evs });
                         }}
