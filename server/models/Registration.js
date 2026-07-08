@@ -17,7 +17,7 @@ const registrationSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: "pending",
   },
-  formResponseId: { type: String, default: null }, // Para deduplicar respuesta del form
+  formResponseId: { type: String }, // Para deduplicar respuesta del form
   rawData: { type: Object, default: {} },
   notes: { type: String, default: "" },
   approvedAt: { type: Date },
