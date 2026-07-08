@@ -22,6 +22,7 @@ import ResultsTable from "../components/ResultsTable";
 import TimeEntryForm from "../components/TimeEntryForm";
 import SORTable from "../components/SORTable";
 import CompetitorEditorModal from "../components/CompetitorEditorModal";
+import RegistrationPanel from "../components/RegistrationPanel";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 import { exportResultsToCSV } from "../utils/exportCsv";
@@ -84,15 +85,6 @@ function CompetitionDetails() {
   const [competitors, setCompetitors] = useState([]); // Competidores elegibles para la ronda
   const [results, setResults] = useState([]); // Resultados de la ronda actual
 
-  // --- Estado del formulario de nuevo competidor ---
-  const [newCompetitor, setNewCompetitor] = useState({
-    name: "",
-    wcaId: "",
-    age: "",
-    locality: "",
-    events: [],
-  });
-
   // --- Estado del formulario de tiempos ---
   const [selectedCompetitorId, setSelectedCompetitorId] = useState("");
   const [inputTimes, setInputTimes] = useState(["", "", "", "", ""]);
@@ -118,12 +110,14 @@ function CompetitionDetails() {
   const [showDropdown, setShowDropdown] = useState(false);
 
   // --- Flags de carga (evitan doble-submit) ---
-  const [isAddingComp, setIsAddingComp] = useState(false);
   const [isSavingTimes, setIsSavingTimes] = useState(false);
 
   const [selectedAgeGroup, setSelectedAgeGroup] = useState(null);
 
   const [showCompetitorEditor, setShowCompetitorEditor] = useState(false);
+
+  const [showRegistrationPanel, setShowRegistrationPanel] = useState(false);
+  const [pendingRegistrationBadge, setPendingRegistrationsBadge] = useState(0);
 
   // --- Refs para enfocar campos y navegación con teclado ---
   const inputRefs = useRef([]); // Refs de los inputs de tiempos (T1, T2, T3...)
@@ -176,16 +170,6 @@ function CompetitionDetails() {
     window.addEventListener("auth-expired", handleAuthExpired);
     return () => window.removeEventListener("auth-expired", handleAuthExpired);
   }, []);
-
-  // ============================================================
-  // EFECTO: Auto-seleccionar el evento al cambiar
-  // Cuando cambia el evento seleccionado, actualiza los eventos
-  // del formulario de nuevo competidor para inscribirlo automáticamente.
-  // ============================================================
-  useEffect(() => {
-    if (selectedEvent)
-      setNewCompetitor((prev) => ({ ...prev, events: [selectedEvent] }));
-  }, [selectedEvent]);
 
   // ============================================================
   // EFECTO: Cargar datos de la competición
@@ -315,6 +299,12 @@ function CompetitionDetails() {
       }
     });
 
+    socket.on("nueva_inscripcion", (data) => {
+      if (data.competitionId === id) {
+        setPendingRegistrationsBadge((prev) => prev + 1);
+      }
+    });
+
     return () => socket.disconnect();
   }, [id]);
 
@@ -378,40 +368,6 @@ function CompetitionDetails() {
     setTimeout(() => {
       if (inputRefs.current[0]) inputRefs.current[0].focus();
     }, 50);
-  };
-
-  // ============================================================
-  // HANDLER: Inscribir un nuevo competidor
-  // ============================================================
-  const handleAddCompetitor = async (e) => {
-    e.preventDefault();
-    if (newCompetitor.events.length === 0) {
-      toast("Selecciona al menos 1 categoría", "error");
-      return;
-    }
-    if (isAddingComp) return; // Evita doble-submit
-
-    setIsAddingComp(true);
-    try {
-      await axios.post(`${API_URL}/api/competitors`, {
-        ...newCompetitor,
-        competitionId: id,
-      });
-      toast(`${newCompetitor.name} inscrito correctamente`, "success");
-      // Limpia el formulario y recarga la lista
-      setNewCompetitor({
-        name: "",
-        wcaId: "",
-        age: "",
-        locality: "",
-        events: [selectedEvent],
-      });
-      setRefreshCompetitors((prev) => prev + 1);
-    } catch (error) {
-      toast(error.response?.data?.message || "Error al añadir", "error");
-    } finally {
-      setIsAddingComp(false);
-    }
   };
 
   // ============================================================
@@ -857,6 +813,13 @@ function CompetitionDetails() {
           setRefreshResults((prev) => prev + 1);
         }}
       />
+      <RegistrationPanel
+        show={showRegistrationPanel}
+        onClose={() => setShowRegistrationPanel(false)}
+        competitionId={id}
+        competitionEvents={competition.events}
+        user={user}
+      />
 
       {/* === CABECERA === */}
       <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
@@ -948,22 +911,35 @@ function CompetitionDetails() {
             )}
 
             {isWritableAdmin && (
-              <button
-                onClick={() => setShowCompetitorEditor(true)}
-                className="bg-purple-800 text-purple-100 px-3 py-1.5 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md text-xs md:text-sm"
-              >
-                ✏️ <span className="hidden sm:inline">Editar Competidores</span>
-              </button>
-            )}
-
-            {/* Botón de logs de auditoría */}
-            {isWritableAdmin && (
-              <button
-                onClick={handleOpenLogs}
-                className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
-              >
-                📜 <span className="hidden sm:inline">Logs</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setShowCompetitorEditor(true)}
+                  className="bg-purple-800 text-purple-100 px-3 py-1.5 rounded border border-purple-700 hover:bg-purple-700 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  ✏️{" "}
+                  <span className="hidden sm:inline">Editar Competidores</span>
+                </button>
+                <button
+                  onClick={handleOpenLogs}
+                  className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
+                >
+                  📜 <span className="hidden sm:inline">Logs</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRegistrationPanel(true);
+                    setPendingRegistrationsBadge(0);
+                  }}
+                  className="relative bg-almeria-dark text-almeria-light px-3 py-1.5 rounded border border-gray-600 hover:bg-gray-700 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  📋 <span className="hidden sm:inline">Inscripciones</span>
+                  {pendingRegistrationBadge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                      {pendingRegistrationBadge}
+                    </span>
+                  )}
+                </button>
+              </>
             )}
 
             {/* Enlace al proyector (abre en nueva pestaña) */}
@@ -1011,116 +987,6 @@ function CompetitionDetails() {
         {/* --- COLUMNA IZQUIERDA: Solo visible para admins --- */}
         {isWritableAdmin && (
           <div className="space-y-6 lg:col-span-1">
-            {/* Formulario de nuevo competidor */}
-            <div className="bg-white text-gray-800 p-6 rounded shadow border-l-4 border-almeria-orange">
-              <h2 className="font-bold mb-2">1. Nuevo Competidor</h2>
-              <form onSubmit={handleAddCompetitor} className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Nombre completo"
-                    className="border p-2 rounded w-full"
-                    value={newCompetitor.name}
-                    onChange={(e) =>
-                      setNewCompetitor({
-                        ...newCompetitor,
-                        name: e.target.value,
-                      })
-                    }
-                    required
-                    disabled={isAddingComp}
-                  />
-                  <input
-                    type="text"
-                    placeholder="WCA ID"
-                    className="border p-2 rounded w-32 uppercase font-mono"
-                    value={newCompetitor.wcaId}
-                    onChange={(e) =>
-                      setNewCompetitor({
-                        ...newCompetitor,
-                        wcaId: e.target.value,
-                      })
-                    }
-                    disabled={isAddingComp}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      placeholder="Edad"
-                      className={`border p-2 rounded w-24 ${
-                        competition.ageGroupsEnabled && !newCompetitor.age
-                          ? "border-orange-400 bg-orange-50"
-                          : ""
-                      }`}
-                      value={newCompetitor.age}
-                      onChange={(e) =>
-                        setNewCompetitor({
-                          ...newCompetitor,
-                          age: e.target.value,
-                        })
-                      }
-                      disabled={isAddingComp}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Localidad / Ciudad"
-                      className="border p-2 rounded w-full"
-                      value={newCompetitor.locality}
-                      onChange={(e) =>
-                        setNewCompetitor({
-                          ...newCompetitor,
-                          locality: e.target.value,
-                        })
-                      }
-                      disabled={isAddingComp}
-                    />
-                  </div>
-                  {competition.ageGroupsEnabled && !newCompetitor.age && (
-                    <p className="text-xs text-orange-500 font-bold">
-                      ⚠️ Esta competición separa por grupos de edad. La edad es
-                      obligatoria para clasificar correctamente.
-                    </p>
-                  )}
-                </div>
-
-                {/* Selector de eventos para la inscripción */}
-                <div className="bg-gray-100 p-2 rounded border border-gray-300">
-                  <p className="text-xs font-bold text-gray-600 mb-1">
-                    Inscribir en:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {competition.events.map((ev) => (
-                      <label
-                        key={ev}
-                        className="text-xs flex items-center gap-1 text-black cursor-pointer bg-white px-1.5 py-0.5 rounded shadow-sm border"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={newCompetitor.events.includes(ev)}
-                          onChange={(e) => {
-                            const evs = e.target.checked
-                              ? [...newCompetitor.events, ev]
-                              : newCompetitor.events.filter((x) => x !== ev);
-                            setNewCompetitor({ ...newCompetitor, events: evs });
-                          }}
-                        />{" "}
-                        {ev}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  disabled={isAddingComp}
-                  className={`w-full py-2 rounded font-bold transition ${isAddingComp ? "bg-gray-400 cursor-not-allowed" : "bg-almeria-dark text-white hover:bg-almeria-orange"}`}
-                >
-                  {isAddingComp ? "Añadiendo..." : "Inscribir Competidor"}
-                </button>
-              </form>
-            </div>
-
             {/* Formulario de tiempos o bloqueo por ronda anterior */}
             {!isPrevRoundFinished ? (
               // Mensaje de bloqueo: la ronda anterior debe cerrarse primero

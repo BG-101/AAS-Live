@@ -24,6 +24,7 @@ const resultRoutes = require("./routes/resultRoutes");
 const auditRoutes = require("./routes/auditRoutes");
 const authRoutes = require("./routes/authRoutes");
 const sorRoutes = require("./routes/sorRoutes");
+const registrationRoutes = require("./routes/registrationRoutes");
 
 // --- Creación de la aplicación Express ---
 const app = express();
@@ -108,6 +109,7 @@ app.use("/api/competitors", writeLimiter, competitorRoutes); // CRUD de competid
 app.use("/api/results", writeLimiter, resultRoutes); // Guardar/consultar tiempos y resultados
 app.use("/api/audit", auditRoutes); // Consultar el registro de auditoría
 app.use("/api/sor", sorRoutes);
+app.use("/api/registrations", writeLimiter, registrationRoutes);
 
 // --- Inicia el servidor HTTP (que a su vez activa Socket.IO) ---
 server.listen(PORT, () => {
