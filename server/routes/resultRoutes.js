@@ -114,6 +114,20 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     if (!comp)
       return res.status(404).json({ message: "Competición no encontrada." });
 
+    const competitorDoc = await Competitor.findOne({
+      _id: competitorId,
+      competition: competitionId,
+      isDeleted: { $ne: true },
+    });
+    if (!competitorDoc)
+      return res
+        .status(404)
+        .json({ message: "Competidor no pertenece a esta competición." });
+    if (!competitorDoc.events.includes(event))
+      return res
+        .status(400)
+        .json({ message: "El competidor no está inscrito en este evento." });
+
     const roundConfig = comp.rounds.find(
       (r) => r.event === event && r.roundNumber === roundNum,
     );
@@ -149,10 +163,9 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     }
 
     // Registra la acción en la auditoría
-    const compData = await Competitor.findById(competitorId);
     await AuditLog.create({
       competition: competitionId,
-      competitorName: compData?.name || "Desconocido",
+      competitorName: competitorDoc?.name || "Desconocido",
       event: event,
       round: roundNum,
       action: isNew ? "NUEVO" : "MODIFICADO",
