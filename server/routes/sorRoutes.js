@@ -39,6 +39,16 @@ router.get("/series/:seriesName", async (req, res) => {
         ageGroupsEnabled: false,
       });
 
+    const socringSystems = new Set(
+      competitions.map((c) => c.scoringSystem || "sor"),
+    );
+    if (scoringSystems.size > 1) {
+      return res.status(409).json({
+        message:
+          "Las competiciones de la serie usan sistemas de puntuación distintos (SOR/F1). Unifícalos antes de consultar el SOR de serie.",
+      });
+    }
+
     const ageGroupsEnabled = competitions.some((c) => c.ageGroupsEnabled);
     const ageGroupsSource =
       competitions.find((c) => c.ageGroupsEnabled) || null;
@@ -46,12 +56,26 @@ router.get("/series/:seriesName", async (req, res) => {
       ? resolveAgeGroups(ageGroupsSource)
       : [];
 
+    let ageGroupLabel = null;
+    if (ageGroup && ageGroupsSource) {
+      ageGroupLabel =
+        seriesAgeGroups.find((g) => g._id === ageGroup)?.label || null;
+    }
+
     // Calcula SOR individual de cada competición
     const compSORs = await Promise.all(
-      competitions.map(async (comp) => ({
-        comp,
-        sor: await calculateSOR(comp._id.toString(), ageGroup || null),
-      })),
+      competitions.map(async (comp) => {
+        let localAgeGroupId = null;
+        if (ageGroupLabel && comp.ageGroupsEnabled) {
+          const localGroups = resolveAgeGroups(comp);
+          localAgeGroupId =
+            localGroups.find((g) => g.label === ageGroupLabel)?._id || null;
+        }
+        return {
+          comp,
+          sor: await calculateSOR(comp._id.toString(), localAgeGroupId),
+        };
+      }),
     );
 
     // Función de clave de agrupación cross-competición
