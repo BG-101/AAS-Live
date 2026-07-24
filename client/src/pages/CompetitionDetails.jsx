@@ -34,29 +34,47 @@ import {
   formatCutoff,
   formatWCATimesArray,
   formatDateRange,
+  resolveCompetitorAge,
 } from "../utils/formatters";
 
-const AGE_GROUPS_CLIENT = {
-  alevin: { label: "Alevín (<=10)", maxAge: 10 },
-  infantil: { label: "Infantil (11-15)", minAge: 11, maxAge: 15 },
-  absoluta: { label: "Absoluta (>=16)", minAge: 16 },
-};
+const DEFAULT_AGE_GROUPS_CLIENT = [
+  { _id: "alevin", label: "Alevín (<=10)", maxAge: 10 },
+  { _id: "infantil", label: "Infantil (11-15)", minAge: 11, maxAge: 15 },
+  { _id: "absoluta", label: "Absoluta (>=16)", minAge: 16 },
+];
 
-const isInAgeGroup = (competitor, groupKey) => {
+const resolveAgeGroupsClient = (competition) =>
+  competition?.ageGroups?.length > 0
+    ? competition.ageGroups.map((g) => ({
+        _id: g._id,
+        label:
+          g.minAge != null && g.maxAge != null
+            ? `${g.label} (${g.minAge}-${g.maxAge})`
+            : g.maxAge != null
+              ? `${g.label} (<=${g.maxAge})`
+              : g.minAge != null
+                ? `${g.label} (>=${g.minAge})`
+                : g.label,
+        minAge: g.minAge,
+        maxAge: g.maxAge,
+      }))
+    : DEFAULT_AGE_GROUPS_CLIENT;
+
+const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {
   if (!groupKey) return true;
-  const group = AGE_GROUPS_CLIENT[groupKey];
-  const age = competitor?.age;
-  if (age === null || age === undefined) return false;
-  if (group.minAge !== undefined && group.maxAge !== undefined)
+  const group = ageGroups.find((g) => g._id === groupKey);
+  const age = resolveCompetitorAge(competitor, referenceDate);
+  if (!group || age === null || age === undefined) return false;
+  if (group.minAge != null && group.maxAge != null)
     return age >= group.minAge && age <= group.maxAge;
-  if (group.maxAge !== undefined) return age <= group.maxAge;
-  if (group.minAge !== undefined) return age >= group.minAge;
+  if (group.maxAge != null) return age <= group.maxAge;
+  if (group.minAge != null) return age >= group.minAge;
   return false;
 };
 
 function CompetitionDetails() {
   // Obtiene el ID de la competición desde la URL (/competition/:id)
-  const { id } = useParams();
+  const { wcaId } = useParams();
   const navigate = useNavigate();
 
   // ============================================================
@@ -78,6 +96,7 @@ function CompetitionDetails() {
 
   // --- Estado de la competición ---
   const [competition, setCompetition] = useState(null);
+  const compId = competition?._id;
   const [selectedEvent, setSelectedEvent] = useState(""); // Evento actualmente seleccionado
   const [selectedRound, setSelectedRound] = useState(1); // Número de ronda seleccionada
 
@@ -177,7 +196,7 @@ function CompetitionDetails() {
   // ============================================================
   useEffect(() => {
     axios
-      .get(`${API_URL}/api/competitions/${id}`)
+      .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
       .then((res) => {
         setCompetition(res.data);
         // Selecciona el primer evento si no hay uno ya seleccionado
@@ -188,19 +207,19 @@ function CompetitionDetails() {
         // Si la competición no existe (404), redirige al inicio
         if (e.response?.status === 404) navigate("/");
       });
-  }, [id, refreshCompetitions, navigate]);
+  }, [wcaId, refreshCompetitions, navigate]);
 
   // ============================================================
   // EFECTO: Cargar competidores elegibles para la ronda actual
   // Los elegibles dependen de la ronda: en R1 todos, en R2+ solo los que avanzaron.
   // ============================================================
   useEffect(() => {
-    if (!selectedEvent || !selectedRound) return;
+    if (!compId || !selectedEvent || !selectedRound) return;
     setSelectedAgeGroup(null);
     setCompetitors([]); // Limpia mientras carga
     axios
       .get(
-        `${API_URL}/api/competitors/${id}/eligible/${selectedEvent}/${selectedRound}`,
+        `${API_URL}/api/competitors/${compId}/eligible/${selectedEvent}/${selectedRound}`,
       )
       .then((res) => {
         setCompetitors(res.data);
@@ -208,21 +227,21 @@ function CompetitionDetails() {
         setSearchName("");
       })
       .catch(console.error);
-  }, [id, selectedEvent, selectedRound, refreshCompetitors]);
+  }, [compId, selectedEvent, selectedRound, refreshCompetitors]);
 
   // ============================================================
   // EFECTO: Cargar resultados de la ronda actual
   // ============================================================
   useEffect(() => {
-    if (!selectedEvent || !selectedRound) return;
+    if (!compId || !selectedEvent || !selectedRound) return;
     setResults([]); // Limpia mientras carga
     axios
-      .get(`${API_URL}/api/results/${id}/${selectedEvent}/${selectedRound}`)
+      .get(`${API_URL}/api/results/${compId}/${selectedEvent}/${selectedRound}`)
       .then((res) => {
         setResults(res.data);
       })
       .catch(console.error);
-  }, [id, selectedEvent, selectedRound, refreshResults]);
+  }, [compId, selectedEvent, selectedRound, refreshResults]);
 
   // ============================================================
   // EFECTO: Auto-refresco de resultados cada 30s (solo para espectadores)
@@ -244,12 +263,13 @@ function CompetitionDetails() {
   // - "competicion_actualizada": cambió la configuración de la competición
   // ============================================================
   useEffect(() => {
+    if (!compId) return;
     const socket = createSocket();
 
     socket.on("resultado_actualizado", (data) => {
       // Solo refresca si es para esta competición, evento y ronda
       if (
-        data.competitionId === id &&
+        data.competitionId === compId &&
         data.event === eventRef.current &&
         data.round === roundRef.current
       ) {
@@ -263,11 +283,11 @@ function CompetitionDetails() {
       }
     });
 
-    socket.on("competicion_actualizada", async (compId) => {
-      if (compId === id) {
+    socket.on("competicion_actualizada", async (updatedCompId) => {
+      if (updatedCompId === compId) {
         try {
           // Verifica que la competición sigue existiendo antes de refrescar
-          await axios.get(`${API_URL}/api/competitions/${id}`);
+          await axios.get(`${API_URL}/api/competitions/${compId}`);
           setRefreshCompetitions((prev) => prev + 1);
           setRefreshResults((prev) => prev + 1);
           setRefreshCompetitors((prev) => prev + 1);
@@ -281,7 +301,7 @@ function CompetitionDetails() {
     });
 
     socket.on("competidor_actualizado", (data) => {
-      if (data.competitionId === id) {
+      if (data.competitionId === compId) {
         setRefreshCompetitors((prev) => prev + 1);
         setRefreshResults((prev) => prev + 1);
       }
@@ -300,13 +320,13 @@ function CompetitionDetails() {
     });
 
     socket.on("nueva_inscripcion", (data) => {
-      if (data.competitionId === id) {
+      if (data.competitionId === compId) {
         setPendingRegistrationsBadge((prev) => prev + 1);
       }
     });
 
     return () => socket.disconnect();
-  }, [id]);
+  }, [compId, navigate]);
 
   // ============================================================
   // HANDLERS DE AUTENTICACIÓN
@@ -400,7 +420,7 @@ function CompetitionDetails() {
       return;
     try {
       const res = await axios.delete(
-        `${API_URL}/api/competitors/empty-trash/${id}`,
+        `${API_URL}/api/competitors/empty-trash/${compId}`,
       );
       alert(res.data.message);
       setRefreshCompetitors((prev) => prev + 1);
@@ -479,7 +499,7 @@ function CompetitionDetails() {
 
     try {
       await axios.post(`${API_URL}/api/results`, {
-        competitionId: id,
+        competitionId: compId,
         competitorId: selectedCompetitorId,
         event: selectedEvent,
         round: selectedRound,
@@ -541,7 +561,7 @@ function CompetitionDetails() {
     if (!confirm(`¿Abrir la Ronda ${selectedRound + 1} para ${selectedEvent}?`))
       return;
     try {
-      await axios.post(`${API_URL}/api/competitions/${id}/next-round`, {
+      await axios.post(`${API_URL}/api/competitions/${compId}/next-round`, {
         event: selectedEvent,
         currentRoundNumber: selectedRound,
       });
@@ -556,7 +576,7 @@ function CompetitionDetails() {
   const handleSaveRoundSettings = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${API_URL}/api/competitions/${id}/round-settings`, {
+      await axios.put(`${API_URL}/api/competitions/${compId}/round-settings`, {
         event: selectedEvent,
         roundNumber: selectedRound,
         advancementType: settingsData.type,
@@ -589,7 +609,7 @@ function CompetitionDetails() {
   const handleOpenLogs = async () => {
     setShowLogs(true);
     try {
-      const res = await axios.get(`${API_URL}/api/audit/${id}`);
+      const res = await axios.get(`${API_URL}/api/audit/${compId}`);
       setAuditLogs(res.data);
     } catch (err) {
       console.error(err);
@@ -614,7 +634,7 @@ function CompetitionDetails() {
           const checks = await Promise.all(
             laterRounds.map((r) =>
               axios.get(
-                `${API_URL}/api/results/${id}/${selectedEvent}/${r.roundNumber}`,
+                `${API_URL}/api/results/${compId}/${selectedEvent}/${r.roundNumber}`,
               ),
             ),
           );
@@ -634,7 +654,7 @@ function CompetitionDetails() {
 
           try {
             await axios.delete(
-              `${API_URL}/api/competitions/${id}/round-results-after`,
+              `${API_URL}/api/competitions/${compId}/round-results-after`,
               { data: { event: selectedEvent, fromRound: selectedRound } },
             );
           } catch {
@@ -652,7 +672,7 @@ function CompetitionDetails() {
     }
 
     try {
-      await axios.put(`${API_URL}/api/competitions/${id}/round-status`, {
+      await axios.put(`${API_URL}/api/competitions/${compId}/round-status`, {
         event: selectedEvent,
         roundNumber: selectedRound,
         status: newStatus,
@@ -685,20 +705,39 @@ function CompetitionDetails() {
   // ── Datos filtrados y derivados, memoizados para evitar recálculos
   // en cada keystroke del formulario o update de WebSocket. ──
 
+  const ageGroupsClient = useMemo(
+    () => resolveAgeGroupsClient(competition),
+    [competition],
+  );
+
   const displayResults = useMemo(
     () =>
       selectedAgeGroup
-        ? results.filter((r) => isInAgeGroup(r.competitor, selectedAgeGroup))
+        ? results.filter((r) =>
+            isInAgeGroup(
+              r.competitor,
+              selectedAgeGroup,
+              ageGroupsClient,
+              competition?.startDate,
+            ),
+          )
         : results,
-    [results, selectedAgeGroup],
+    [results, selectedAgeGroup, ageGroupsClient, competition?.startDate],
   );
 
   const displayCompetitors = useMemo(
     () =>
       selectedAgeGroup
-        ? competitors.filter((c) => isInAgeGroup(c, selectedAgeGroup))
+        ? competitors.filter((c) =>
+            isInAgeGroup(
+              c,
+              selectedAgeGroup,
+              ageGroupsClient,
+              competition?.startDate,
+            ),
+          )
         : competitors,
-    [competitors, selectedAgeGroup],
+    [competitors, selectedAgeGroup, ageGroupsClient, competition?.startDate],
   );
 
   // Estadísticas de progreso
@@ -806,8 +845,9 @@ function CompetitionDetails() {
       <CompetitorEditorModal
         show={showCompetitorEditor}
         onClose={() => setShowCompetitorEditor(false)}
-        competitionId={id}
+        competitionId={compId}
         competitionEvents={competition.events}
+        competitionStartDate={competition.startDate}
         onSaved={() => {
           setRefreshCompetitors((prev) => prev + 1);
           setRefreshResults((prev) => prev + 1);
@@ -816,8 +856,9 @@ function CompetitionDetails() {
       <RegistrationPanel
         show={showRegistrationPanel}
         onClose={() => setShowRegistrationPanel(false)}
-        competitionId={id}
+        competitionId={compId}
         competitionEvents={competition.events}
+        competitionStartDate={competition.startDate}
         user={user}
       />
 
@@ -945,7 +986,7 @@ function CompetitionDetails() {
             {/* Enlace al proyector (abre en nueva pestaña) */}
             {user && selectedEvent !== "__SOR__" && (
               <Link
-                to={`/projector/${id}/${selectedEvent}/${selectedRound}`}
+                to={`/projector/${encodeURIComponent(wcaId)}/${selectedEvent}/${selectedRound}`}
                 target="_blank"
                 className="hidden sm:flex items-center bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
               >
@@ -1032,12 +1073,17 @@ function CompetitionDetails() {
                       <p className="font-bold text-gray-300 mb-1">
                         Elegibles esta ronda por grupo:
                       </p>
-                      {Object.entries(AGE_GROUPS_CLIENT).map(([key, group]) => {
+                      {ageGroupsClient.map((group) => {
                         const count = competitors.filter((c) =>
-                          isInAgeGroup(c, key),
+                          isInAgeGroup(
+                            c,
+                            group._id,
+                            ageGroupsClient,
+                            competition.startDate,
+                          ),
                         ).length;
                         return (
-                          <div key={key} className="flex justify-between">
+                          <div key={group._id} className="flex justify-between">
                             <span>{group.label}</span>
                             <span className="font-bold text-white">
                               {count}
@@ -1075,13 +1121,13 @@ function CompetitionDetails() {
               >
                 Todos
               </button>
-              {Object.entries(AGE_GROUPS_CLIENT).map(([key, group]) => (
+              {ageGroupsClient.map((group) => (
                 <button
-                  key={key}
+                  key={group._id}
                   type="button"
-                  onClick={() => setSelectedAgeGroup(key)}
+                  onClick={() => setSelectedAgeGroup(group._id)}
                   className={`px-2.5 py-0.5 md:px-4 md:py-1 text-xs font-bold rounded-full transition ${
-                    selectedAgeGroup === key
+                    selectedAgeGroup === group._id
                       ? "bg-almeria-orange text-white"
                       : "bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white"
                   }`}
@@ -1145,7 +1191,7 @@ function CompetitionDetails() {
                 )}
               </div>
               <SORTable
-                compId={id}
+                compId={compId}
                 ageGroupsEnabled={competition.ageGroupsEnabled}
               />
             </div>

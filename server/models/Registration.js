@@ -9,6 +9,7 @@ const registrationSchema = new mongoose.Schema({
   name: { type: String, required: true },
   wcaId: { type: String, default: "" },
   age: { type: Number, default: null },
+  birthDate: { type: Date, default: null },
   locality: { type: String, default: "" },
   email: { type: String, default: "" },
   events: [{ type: String }],

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
+import { resolveCompetitorAge } from "../utils/formatters";
 
 const STATUS = {
   pending: {
@@ -21,7 +22,7 @@ const STATUS = {
 const EMPTY_FORM = {
   name: "",
   wcaId: "",
-  age: "",
+  birthDate: "",
   locality: "",
   email: "",
   events: [],
@@ -32,6 +33,7 @@ export default function RegistrationPanel({
   onClose,
   competitionId,
   competitionEvents,
+  competitionStartDate,
   user,
 }) {
   const [registrations, setRegistrations] = useState([]);
@@ -226,6 +228,11 @@ export default function RegistrationPanel({
                   <strong>Extensiones → Apps Script</strong>
                 </li>
                 <li>Pega el script plantilla y ajusta los nombres de campo</li>
+                <li>
+                  Si usas casillas de selección múltiple para eventos y el texto
+                  de las opciones no coincide con los nombres internos, rellena{" "}
+                  <code>EVENT_LABEL_MAP</code>
+                </li>
                 <li>Crea un activador: "Al enviar el formulario"</li>
               </ol>
             </div>
@@ -237,31 +244,72 @@ export default function RegistrationPanel({
               </p>
               <pre className="bg-gray-900 text-green-300 text-[10px] rounded p-2 overflow-x-auto whitespace-pre-wrap select-all">
                 {`function onFormSubmit(e) {
-    var WEBHOOK_URL = "${webhookUrl}";
-    var SECRET = "TU_SECRETO_AQUI";
-    
-    var r = e.namedValues;
-    // Ajusta los nombres a los de tu formulario:
-    var data = {
-        name: r["Nombre completo"]?.[0] || "",
-        wcaId: r["WCA ID"]?.[0] || "",
-        age: r["Edad"]?.[0] || "",
-        locality: r["Ciudad"].[0] || "",
-        email: r["Email"].[0] || "",
-        events: (r["Eventos"].[0] || "")
-                    .split(",")
-                    .map(function(s){return s.trim()})
-                    .filter(Boolean),
-        formResponseId: e.response.getId()
-    };
-    
-    UrlFetchApp.fetch(WEBHOOK_URL, {
-        method: "post",
-        contentType: "application/json",
-        headers: { "X-Webhook-Secret": SECRET },
-        payload: JSON.stringify(data),
-        muteHttpExceptions: true
-    });
+  var WEBHOOK_URL = "${webhookUrl}";
+  var SECRET = "TU_SECRETO_AQUI";
+  
+  var r = e.namedValues;
+
+  // Si tu pregunta de eventos usa casillas de verificación (selección
+  // múltiple), Google Forms ya une las opciones marcadas con comas en
+  // la celda de la hoja de respuestas (aunque el formulario muestre
+  // fotos junto a cada opción, el valor enviado es el texto de la
+  // opción). Ajusta este mapa si el texto de tus opciones no coincide
+  // exactamente con los códigos internos de la app:
+  // 3x3, 2x2, 4x4, 5x5, 6x6, 7x7, OH, 3x3 BLD, 4x4 BLD, 5x5 BLD,
+  // FMC, Pyraminx, Skewb, Megaminx, Sq-1, Clock
+  var EVENT_LABEL_MAP = {
+    // "Texto exacto de tu opción": "CódigoInterno",
+    // Ejemplo: "Cubo 3x3 clásico": "3x3",
+  };
+  
+  function getField(key) {
+    var arr = r[key];
+    return arr && arr[0] ? arr[0].trim() : "";
+  }
+
+  function getEventsField(key) {
+    var raw = getField(key);
+    if (!raw) return [];
+    return raw
+      .split(",")
+      .map(function (s) { return s.trim(); })
+      .filter(Boolean)
+      .map(function (label) { return EVENT_LABEL_MAP[label] || label; });
+  }
+
+  // La fecha de nacimiento se lee del ItemResponse (no de namedValues)
+  // para evitar ambigüedades de formato regional (DD/MM vs MM/DD).
+  function getDateField(questionTitle) {
+    var items = e.response.getItemResponses();
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].getItem().getTitle() === questionTitle) {
+        return items[i].getResponse();
+      }
+    }
+    return "";
+  }
+  
+  // Ajusta los títulos exactos a los de las preguntas de tu formulario:
+  var data = {
+    name: getField("Nombre completo"),
+    wcaId: getField("WCA ID"),
+    birthDate: getField("Fecha de nacimiento"),
+    locality: getField("Ciudad"),
+    email: getField("Email"),
+    events: getEventsField("Eventos"),
+    formResponseId: e.response.getId()
+  };
+  
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    headers: { "X-Webhook-Secret": SECRET },
+    payload: JSON.stringify(data),
+    muteHttpExceptions: true
+  };
+  
+  var response = UrlFetchApp.fetch(WEBHOOK_URL, options);
+  Logger.log(response.getContentText());
 }`}
               </pre>
             </div>
@@ -337,9 +385,17 @@ export default function RegistrationPanel({
                       </div>
 
                       <div className="text-xs text-gray-500 mt-0.5 flex gap-3 flex-wrap">
-                        {reg.age && <span>🎂 {reg.age} años</span>}
+                        {(() => {
+                          const displayAge = resolveCompetitorAge(
+                            reg,
+                            competitionStartDate,
+                          );
+                          return displayAge !== null ? (
+                            <span>🎂 {displayAge} años</span>
+                          ) : null;
+                        })()}
                         {reg.locality && <span>📍 {reg.locality}</span>}
-                        {reg.email && <span>✉️ {reg.email} años</span>}
+                        {reg.email && <span>✉️ {reg.email}</span>}
                       </div>
 
                       {reg.events.length > 0 && (
@@ -433,13 +489,12 @@ export default function RegistrationPanel({
                   }
                 />
                 <input
-                  type="number"
-                  placeholder="Edad"
+                  type="date"
                   required
-                  className="w-20 p-2 border rounded text-sm"
-                  value={manualForm.age}
+                  className="w-40 p-2 border rounded text-sm"
+                  value={manualForm.birthDate}
                   onChange={(e) =>
-                    setManualForm({ ...manualForm, age: e.target.value })
+                    setManualForm({ ...manualForm, birthDate: e.target.value })
                   }
                 />
               </div>

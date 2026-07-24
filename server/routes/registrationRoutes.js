@@ -44,6 +44,7 @@ router.post(
         name,
         wcaId,
         age,
+        birthDate,
         locality,
         email,
         events,
@@ -60,6 +61,7 @@ router.post(
           name: name.trim(),
           wcaId: wcaId?.trim() || "",
           age: age ? Number(age) : null,
+          birthDate: birthDate || null,
           locality: locality?.trim() || "",
           email: email?.trim() || "",
           events: Array.isArray(events) ? events : [],
@@ -94,7 +96,7 @@ router.post(
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
-      const { name, wcaId, age, locality, email, events } = req.body;
+      const { name, wcaId, age, birthDate, locality, email, events } = req.body;
       if (!name?.trim())
         return res.status(400).json({ message: "Nombre requerido." });
 
@@ -103,6 +105,7 @@ router.post(
         name: name.trim(),
         wcaId: wcaId?.trim() || "",
         age: age ? Number(age) : null,
+        birthDate: birthDate || null,
         locality: locality?.trim() || "",
         email: email?.trim() || "",
         events: Array.isArray(events) ? events : [],
@@ -185,6 +188,7 @@ router.patch(
             name: reg.name,
             wcaId: reg.wcaId || "",
             age: reg.age,
+            birthDate: reg.birthDate,
             locality: reg.locality || "",
             competition: reg.competition,
             events: reg.events,

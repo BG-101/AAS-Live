@@ -167,6 +167,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
           name: req.body.name.trim(),
           wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
           age: req.body.age || null,
+          birthDate: req.body.birthDate || null,
           locality: req.body.locality ? req.body.locality.trim() : "",
           competition: compId,
           events: req.body.events,
@@ -234,6 +235,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
                   name: req.body.name.trim(),
                   wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
                   age: req.body.age || null,
+                  birthDate: req.body.birthDate || null,
                   locality: req.body.locality ? req.body.locality.trim() : "",
                   competition: seriesComp._id,
                   events: req.body.events,
@@ -387,7 +389,7 @@ router.put(
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
-      const { name, wcaId, age, locality, events } = req.body;
+      const { name, wcaId, age, birthDate, locality, events } = req.body;
 
       const comp = await Competitor.findById(req.params.id);
       if (!comp || comp.isDeleted)
@@ -413,6 +415,12 @@ router.put(
           name: name ? name.trim() : comp.name,
           wcaId: wcaId !== undefined ? wcaId.trim() : comp.wcaId,
           age: age !== undefined ? (age === "" ? null : Number(age)) : comp.age,
+          birthDate:
+            birthDate !== undefined
+              ? birthDate === ""
+                ? null
+                : birthDate
+              : comp.birthDate,
           locality: locality !== undefined ? locality.trim() : comp.locality,
           events: events || comp.events,
         },

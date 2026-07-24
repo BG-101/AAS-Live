@@ -10,13 +10,6 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { createSocket } from "../utils/socket";
 
-const AGE_GROUP_KEYS = ["alevin", "infantil", "absoluta"];
-const AGE_GROUP_LABELS = {
-  alevin: "Alevín (<=10)",
-  infantil: "Infantil (11-15)",
-  absoluta: "Absoluta (>=16)",
-};
-
 function SeriesSOR() {
   const { seriesName } = useParams();
   const [data, setData] = useState(null);
@@ -24,6 +17,7 @@ function SeriesSOR() {
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [ageGroupsList, setAgeGroupsList] = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -33,7 +27,10 @@ function SeriesSOR() {
     }`;
     axios
       .get(url)
-      .then((res) => setData(res.data))
+      .then((res) => {
+        setData(res.data);
+        if (res.data.ageGroups) setAgeGroupsList(res.data.ageGroups);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [seriesName, activeGroup, refreshTrigger]);
@@ -83,7 +80,7 @@ function SeriesSOR() {
         </div>
 
         {/* Pestañas de grupos de edad */}
-        {ageGroupsEnabled && (
+        {ageGroupsEnabled && ageGroupsList.length > 0 && (
           <div className="flex gap-2 mb-6 flex-wrap">
             <button
               onClick={() => setActiveGroup(null)}
@@ -95,17 +92,17 @@ function SeriesSOR() {
             >
               General
             </button>
-            {AGE_GROUP_KEYS.map((key) => (
+            {ageGroupsList.map((group) => (
               <button
-                key={key}
-                onClick={() => setActiveGroup(key)}
+                key={group._id}
+                onClick={() => setActiveGroup(group._id)}
                 className={`px-4 py-2 rounded font-bold text-sm transition ${
-                  activeGroup === key
+                  activeGroup === group._id
                     ? "bg-almeria-orange text-white"
                     : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                 }`}
               >
-                {AGE_GROUP_LABELS[key]}
+                {group.label}
               </button>
             ))}
           </div>

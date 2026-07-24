@@ -158,6 +158,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       action: isNew ? "NUEVO" : "MODIFICADO",
       oldTimes: oldTimes || [],
       newTimes: times,
+      user: req.user?.username || "Desconocido",
     });
 
     // Envía la respuesta HTTP para que el cliente no se quede esperando

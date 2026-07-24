@@ -10,13 +10,6 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { io } from "socket.io-client";
 
-const AGE_GROUP_KEYS = ["alevin", "infantil", "absoluta"];
-const AGE_GROUP_LABELS = {
-  alevin: "Alevín (<=10)",
-  infantil: "Infantil (11-15)",
-  absoluta: "Absoluta (>=16)",
-};
-
 /**
  * @param {string} compId - ID de la competición
  * @param {boolean} ageGroupsEnabled - Si true, muestra pestañas de grupos de edad
@@ -27,6 +20,7 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
   const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null); // Para el sheet móvil
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [ageGroupsList, setAgeGroupsList] = useState([]);
 
   const systemLabel =
     sorData?.scoringSystem === "f1"
@@ -48,7 +42,10 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
     }`;
     axios
       .get(url)
-      .then((res) => setSorData(res.data))
+      .then((res) => {
+        setSorData(res.data);
+        if (res.data.ageGroups) setAgeGroupsList(res.data.ageGroups);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [compId, activeGroup, refreshTrigger]);
@@ -83,7 +80,7 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
       )}
 
       {/* Pestañas de grupos de edad */}
-      {ageGroupsEnabled && (
+      {ageGroupsEnabled && ageGroupsList.length > 0 && (
         <div className="flex gap-2 mb-4 flex-wrap">
           <button
             onClick={() => setActiveGroup(null)}
@@ -95,17 +92,17 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
           >
             General
           </button>
-          {AGE_GROUP_KEYS.map((key) => (
+          {ageGroupsList.map((group) => (
             <button
-              key={key}
-              onClick={() => setActiveGroup(key)}
+              key={group._id}
+              onClick={() => setActiveGroup(group._id)}
               className={`px-4 py-1 rounded font-bold text-sm transition ${
-                activeGroup === key
+                activeGroup === group._id
                   ? "bg-almeria-orange text-white"
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
             >
-              {AGE_GROUP_LABELS[key]}
+              {group.label}
             </button>
           ))}
         </div>

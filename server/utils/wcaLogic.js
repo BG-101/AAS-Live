@@ -167,13 +167,17 @@ async function getEligibleCount(compId, event, round) {
 // competidores elegibles que pertenecen al grupo de edad dado.
 // ============================================================
 async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
+  const comp = await Competition.findById(compId);
+  const ageGroups = resolveAgeGroups(comp);
+
   if (round === 1) {
     const allInEvent = await Competitor.find({
       competition: compId,
       events: event,
       isDeleted: { $ne: true },
     }).lean();
-    return filterByAgeGroup(allInEvent, ageGroupKey).length;
+    return filterByAgeGroup(allInEvent, ageGroupKey, ageGroups, comp.startDate)
+      .length;
   }
 
   const prevRoundNum = round - 1;
@@ -187,9 +191,12 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
 
   const validPrevResults = prevResults
     .filter((r) => r.competitor !== null)
-    .filter((r) => filterByAgeGroup([r.competitor], ageGroupKey).length > 0);
+    .filter(
+      (r) =>
+        filterByAgeGroup([r.competitor], ageGroupKey, ageGroups, comp.startDate)
+          .length > 0,
+    );
 
-  const comp = await Competition.findById(compId);
   const prevRound = comp.rounds.find(
     (r) => r.event === event && r.roundNumber === prevRoundNum,
   );
@@ -281,13 +288,18 @@ async function processAdvancements(
   }
 
   // ── Lógica con grupos de edad ──
+  const comp = await Competition.findById(compId);
+  const ageGroups = resolveAgeGroups(comp);
+
   // Inicializa todos como "no clasificados"
   sortedResults.forEach((res) => (res.advances = false));
 
-  for (const groupKey of Object.keys(AGE_GROUPS)) {
+  for (const group of ageGroups) {
     // Filtra los resultados de este grupo preservando el orden WCA
     const groupResults = sortedResults.filter(
-      (r) => filterByAgeGroup([r.competitor], groupKey).length > 0,
+      (r) =>
+        filterByAgeGroup([r.competitor], group._id, ageGroups, comp.startDate)
+          .length > 0,
     );
     if (groupResults.length === 0) continue;
 
@@ -295,7 +307,7 @@ async function processAdvancements(
       compId,
       event,
       currentRound,
-      groupKey,
+      group._id,
     );
 
     const cutoffIndex =
@@ -325,32 +337,75 @@ async function processAdvancements(
 
 // ============================================================
 // CONSTANTES DE GRUPOS DE EDAD
-// Alevín ≤10 | Infantil 11-15 | Absoluta ≥16
 // ============================================================
-const AGE_GROUPS = {
-  alevin: { label: "Alevín", maxAge: 10 },
-  infantil: { label: "Infantil", minAge: 11, maxAge: 15 },
-  absoluta: { label: "Absoluta", minAge: 16 },
+const DEFAULT_AGE_GROUPS = [
+  { _id: "alevin", label: "Alevín", maxAge: 10 },
+  { _id: "infantil", label: "Infantil", minAge: 11, maxAge: 15 },
+  { _id: "absoluta", label: "Absoluta", minAge: 16 },
+];
+
+/**
+ * Resuelve los grupos de edad de una competición: los personalizados
+ * si existen, si no, los del sistema por defecto.
+ */
+const resolveAgeGroups = (comp) => {
+  if (comp?.ageGroups?.length > 0) {
+    return comp.ageGroups.map((g) => ({
+      _id: g._id.toString(),
+      label: g.label,
+      minAge: g.minAge ?? undefined,
+      maxAge: g.maxAge ?? undefined,
+    }));
+  }
+  return DEFAULT_AGE_GROUPS;
+};
+
+/**
+ * Calcula la edad de una persona en una fecha de referencia dada.
+ */
+const getAgeAtDate = (birthDate, referenceDate) => {
+  if (!birthDate || !referenceDate) return null;
+  const birth = new Date(birthDate);
+  const ref = new Date(referenceDate);
+  let age = ref.getFullYear() - birth.getFullYear();
+  const hasHadBirthdayThisYear =
+    ref.getMonth() > birth.getMonth() ||
+    (ref.getMonth() === birth.getMonth() && ref.getDate() >= birth.getDate());
+  if (!hasHadBirthdayThisYear) age--;
+  return age;
+};
+
+/**
+ * Resuelve la edad "efectiva" de un competidor en la fecha de referencia:
+ * usa birthDate si existe, si no cae al campo age legacy.
+ */
+const resolveCompetitorAge = (competitor, referenceDate) => {
+  if (competitor?.birthDate)
+    return getAgeAtDate(competitor.birthDate, referenceDate);
+  return competitor?.age ?? null;
 };
 
 // Puntos F1 por posición (índice 0 = 1er puesto)
 const F1_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 
 // ============================================================
-// filterByAgeGroup(competitors, groupKey)
+// filterByAgeGroup(competitors, groupKey, ageGroups)
 // Filtra un array de competidores (lean) según el grupo de edad.
+// Si el grupo no existe en la lista dada, devuelve vacío (no todos)
+// para evitar falsos positivos al mezclar configuraciones distintas.
 // ============================================================
-const filterByAgeGroup = (competitors, groupKey) => {
+const filterByAgeGroup = (competitors, groupKey, ageGroups, referenceDate) => {
   if (!groupKey) return competitors;
-  const group = AGE_GROUPS[groupKey];
-  if (!group) return competitors;
+  const list = ageGroups || DEFAULT_AGE_GROUPS;
+  const group = list.find((g) => g._id === groupKey);
+  if (!group) return [];
   return competitors.filter((c) => {
-    const age = c.age;
+    const age = resolveCompetitorAge(c, referenceDate);
     if (age === null || age === undefined) return false;
-    if (group.minAge !== undefined && group.maxAge !== undefined)
+    if (group.minAge != null && group.maxAge != null)
       return age >= group.minAge && age <= group.maxAge;
-    if (group.maxAge !== undefined) return age <= group.maxAge;
-    if (group.minAge !== undefined) return age >= group.minAge;
+    if (group.maxAge != null) return age <= group.maxAge;
+    if (group.minAge != null) return age >= group.minAge;
     return false;
   });
 };
@@ -374,6 +429,7 @@ async function calculateSOR(compId, ageGroup = null) {
   if (!comp) throw new Error("Competición no encontrada");
 
   const isF1 = (comp.scoringSystem || "sor") === "f1";
+  const ageGroups = resolveAgeGroups(comp);
 
   // Obtiene todos los competidores activos, filtrando por edad si procede
   let allCompetitors = await Competitor.find({
@@ -381,12 +437,19 @@ async function calculateSOR(compId, ageGroup = null) {
     isDeleted: { $ne: true },
   }).lean();
 
-  if (ageGroup) allCompetitors = filterByAgeGroup(allCompetitors, ageGroup);
+  if (ageGroup)
+    allCompetitors = filterByAgeGroup(
+      allCompetitors,
+      ageGroup,
+      ageGroups,
+      comp.startDate,
+    );
   if (allCompetitors.length === 0)
     return {
       rankings: [],
       events: [],
       scoringSystem: comp.scoringSystem || "sor",
+      ageGroups,
     };
 
   // Mapa por ID para acumular rangos
@@ -396,7 +459,7 @@ async function calculateSOR(compId, ageGroup = null) {
       competitorId: c._id.toString(),
       name: c.name,
       wcaId: c.wcaId || "",
-      age: c.age,
+      age: resolveCompetitorAge(c, comp.startDate),
       totalScore: 0,
       eventRanks: {},
     };
@@ -497,6 +560,7 @@ async function calculateSOR(compId, ageGroup = null) {
     events,
     scoringSystem: comp.scoringSystem || "sor",
     absentPenalty: totalAbsentPenalty,
+    ageGroups,
   };
 }
 
@@ -505,7 +569,10 @@ module.exports = {
   processAdvancements,
   sortResultsWCA,
   calculateSOR,
-  AGE_GROUPS,
+  DEFAULT_AGE_GROUPS,
+  resolveAgeGroups,
+  getAgeAtDate,
+  resolveCompetitorAge,
   F1_POINTS,
   filterByAgeGroup,
   getEligibleCountByAgeGroup,

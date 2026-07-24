@@ -11,6 +11,7 @@ const Competitor = require("../models/Competitor");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const Result = require("../models/Result");
+const mongoose = require("mongoose");
 
 // ============================================================
 // GET /api/competitions
@@ -26,6 +27,34 @@ router.get("/", async (req, res) => {
       startDate: -1, // Ordena por fecha de inicio, más recientes primero
     });
     res.json(competitions);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ============================================================
+// GET /api/competitions/by-wca/:wcaId
+// Resuelve una competición por su ID WCA (URL amigable).
+// Soporta también el _id de Mongo como fallback, para no romper
+// enlaces antiguos ya compartidos.
+// ============================================================
+router.get("/by-wca/:wcaId", async (req, res) => {
+  try {
+    const { wcaId } = req.params;
+    const query = mongoose.Types.ObjectId.isValid(wcaId)
+      ? { _id: wcaId, isDeleted: { $ne: true } }
+      : { wcaId, isDeleted: { $ne: true } };
+
+    const competition = await Competition.findOne(query);
+    if (!competition)
+      return res.status(404).json({ message: "No encontrada." });
+
+    const competitorCount = await Competitor.countDocuments({
+      competition: competition._id,
+      isDeleted: { $ne: true },
+    });
+
+    res.json({ ...competition.toObject(), competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -75,6 +104,7 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     sorEnabled,
     scoringSystem,
     ageGroupsEnabled,
+    ageGroups,
   } = req.body;
 
   // Construye el documento de la competición
@@ -91,6 +121,7 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     sorEnabled: sorEnabled ?? false,
     scoringSystem: scoringSystem || "sor",
     ageGroupsEnabled: ageGroupsEnabled ?? false,
+    ageGroups: Array.isArray(ageGroups) ? ageGroups : [],
   });
 
   try {

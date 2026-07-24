@@ -7,7 +7,7 @@
 const express = require("express");
 const router = express.Router();
 const Competition = require("../models/Competition");
-const { calculateSOR, AGE_GROUPS } = require("../utils/wcaLogic");
+const { calculateSOR, resolveAgeGroups } = require("../utils/wcaLogic");
 
 // ============================================================
 // GET /api/sor/series/:seriesName
@@ -40,6 +40,11 @@ router.get("/series/:seriesName", async (req, res) => {
       });
 
     const ageGroupsEnabled = competitions.some((c) => c.ageGroupsEnabled);
+    const ageGroupsSource =
+      competitions.find((c) => c.ageGroupsEnabled) || null;
+    const seriesAgeGroups = ageGroupsSource
+      ? resolveAgeGroups(ageGroupsSource)
+      : [];
 
     // Calcula SOR individual de cada competición
     const compSORs = await Promise.all(
@@ -107,6 +112,7 @@ router.get("/series/:seriesName", async (req, res) => {
         events: c.events,
       })),
       ageGroupsEnabled,
+      ageGroups: seriesAgeGroups,
       // El sistema de la serie es el de la primera competición
       // (se asume homogéneo dentro de una serie)
       scoringSystem: competitions[0]?.scoringSystem || "sor",
