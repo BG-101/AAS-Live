@@ -41,11 +41,17 @@ router.get("/", async (req, res) => {
 router.get("/by-wca/:wcaId", async (req, res) => {
   try {
     const { wcaId } = req.params;
-    const query = mongoose.Types.ObjectId.isValid(wcaId)
-      ? { _id: wcaId, isDeleted: { $ne: true } }
-      : { wcaId, isDeleted: { $ne: true } };
 
-    const competition = await Competition.findOne(query);
+    const competition = await Competition.findOne({
+      wcaId,
+      isDeleted: { $ne: true },
+    });
+    if (!competition && mongoose.Types.ObjectId.isValid(wcaId)) {
+      competition = await Competition.findOne({
+        _id: wcaId,
+        isDeleted: { $ne: true },
+      });
+    }
     if (!competition)
       return res.status(404).json({ message: "No encontrada." });
 
