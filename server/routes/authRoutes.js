@@ -149,8 +149,15 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
       return res.status(400).json({ message: "Rol no válido." });
     }
 
+    if (!username?.trim() || !password || password.length < 8) {
+      return res.status(400).json({
+        message: "Usuario requerido y contraseña de mínimo 8 caracteres.",
+      });
+    }
+    const cleanUsername = username.trim();
+
     // Verifica que no exista ya un usuario con ese nombre
-    const existingUser = await User.findOne({ username });
+    const existingUser = await User.findOne({ cleanUsername });
     if (existingUser)
       return res.status(400).json({ message: "El usuario ya existe." });
 
@@ -160,7 +167,7 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
 
     // Crea el usuario con el rol especificado (o "Delegado" por defecto)
     const newUser = new User({
-      username,
+      cleanUsername,
       password: hashedPassword,
       role: role || "Delegado",
     });
@@ -168,7 +175,9 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
     await newUser.save();
     res
       .status(201)
-      .json({ message: `Usuario ${username} (${role}) creado correctamente.` });
+      .json({
+        message: `Usuario ${cleanUsername} (${role}) creado correctamente.`,
+      });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
