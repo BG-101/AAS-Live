@@ -129,6 +129,8 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
   try {
     const compId = req.body.competitionId;
     const comp = await Competition.findById(req.body.competitionId);
+    if (!comp)
+      return res.status(404).json({ message: "Competición no encontrada." });
 
     // Comprueba que no se haya alcanzado el límite de competidores
     const currentCount = await Competitor.countDocuments({

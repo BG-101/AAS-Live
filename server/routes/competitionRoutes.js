@@ -150,6 +150,8 @@ router.post(
     const { event, currentRoundNumber } = req.body;
     try {
       const comp = await Competition.findById(req.params.id);
+      if (!comp)
+        return res.status(404).json({ message: "Competición no encontrada." });
 
       // Busca la ronda actual en la configuración
       const currentRound = comp.rounds.find(
@@ -222,6 +224,8 @@ router.put(
     } = req.body;
     try {
       const comp = await Competition.findById(req.params.id);
+      if (!comp)
+        return res.status(404).json({ message: "Competición no encontrada." });
 
       // Busca el índice de la ronda en el array
       const roundIndex = comp.rounds.findIndex(
@@ -265,6 +269,8 @@ router.put(
     const { event, roundNumber, status } = req.body;
     try {
       const comp = await Competition.findById(req.params.id);
+      if (!comp)
+        return res.status(404).json({ message: "Competición no encontrada." });
 
       // Busca la ronda y actualiza su estado
       const roundIndex = comp.rounds.findIndex(
