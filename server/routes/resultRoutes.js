@@ -132,6 +132,14 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       (r) => r.event === event && r.roundNumber === roundNum,
     );
     const format = roundConfig ? roundConfig.format : "a";
+
+    const expectedLength = format === "a" ? 5 : 3;
+    if (times.length !== expectedLength) {
+      return res.status(400).json({
+        message: `Formato ${format === "a" ? "Ao5" : format === "m" ? "Mo3" : "Bo3"} requiere exactamente ${expectedLength} intentos.`,
+      });
+    }
+
     const { best, average } = calculateStats(times, format);
 
     // Busca si ya existe un resultado y actualízalo o créalo
