@@ -57,7 +57,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // Esto protege contra ataques XSS
     res.cookie("jwtToken", token, {
       httpOnly: true, // No accesible desde JS del navegador
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Protección contra CSRF
       maxAge: 48 * 60 * 60 * 1000, // Expira en 48 horas (en ms)
     });
@@ -86,7 +86,7 @@ router.get("/me", auth(), async (req, res) => {
 router.post("/logout", (req, res) => {
   res.clearCookie("jwtToken", {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   }); // Elimina la cookie del navegador
   res.json({ message: "Sesión cerrada correctamente" });
