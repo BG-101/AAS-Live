@@ -304,6 +304,7 @@ function CompetitionDetails() {
       if (data.competitionId === compId) {
         setRefreshCompetitors((prev) => prev + 1);
         setRefreshResults((prev) => prev + 1);
+        setRefreshCompetitions((prev) => prev + 1); // Recalcula competitorCount
       }
     });
 
@@ -900,9 +901,9 @@ function CompetitionDetails() {
                     : "text-gray-400"
                 }`}
               >
-                👥 {competitors.length} / {competition.competitorLimit}{" "}
+                👥 {competition.competitorCount} / {competition.competitorLimit}{" "}
                 competidores
-                {competitors.length >= competition.competitorLimit && (
+                {competition.competitorCount >= competition.competitorLimit && (
                   <span className="ml-2 text-xs bg-red-900 text-red-300 px-1.5 py-0.5 rounded-full">
                     AFORO COMPLETO
                   </span>
