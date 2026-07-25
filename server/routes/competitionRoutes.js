@@ -42,7 +42,7 @@ router.get("/by-wca/:wcaId", async (req, res) => {
   try {
     const { wcaId } = req.params;
 
-    const competition = await Competition.findOne({
+    let competition = await Competition.findOne({
       wcaId,
       isDeleted: { $ne: true },
     });

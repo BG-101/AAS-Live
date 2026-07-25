@@ -157,7 +157,7 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
     const cleanUsername = username.trim();
 
     // Verifica que no exista ya un usuario con ese nombre
-    const existingUser = await User.findOne({ cleanUsername });
+    const existingUser = await User.findOne({ username: cleanUsername });
     if (existingUser)
       return res.status(400).json({ message: "El usuario ya existe." });
 
@@ -167,17 +167,15 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
 
     // Crea el usuario con el rol especificado (o "Delegado" por defecto)
     const newUser = new User({
-      cleanUsername,
+      username: cleanUsername,
       password: hashedPassword,
       role: role || "Delegado",
     });
 
     await newUser.save();
-    res
-      .status(201)
-      .json({
-        message: `Usuario ${cleanUsername} (${role}) creado correctamente.`,
-      });
+    res.status(201).json({
+      message: `Usuario ${cleanUsername} (${role}) creado correctamente.`,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -39,7 +39,7 @@ router.get("/series/:seriesName", async (req, res) => {
         ageGroupsEnabled: false,
       });
 
-    const socringSystems = new Set(
+    const scoringSystems = new Set(
       competitions.map((c) => c.scoringSystem || "sor"),
     );
     if (scoringSystems.size > 1) {
@@ -49,15 +49,39 @@ router.get("/series/:seriesName", async (req, res) => {
       });
     }
 
-    const ageGroupsEnabled = competitions.some((c) => c.ageGroupsEnabled);
-    const ageGroupsSource =
-      competitions.find((c) => c.ageGroupsEnabled) || null;
-    const seriesAgeGroups = ageGroupsSource
-      ? resolveAgeGroups(ageGroupsSource)
-      : [];
+    const ageGroupsEnabledComps = competitions.filter(
+      (c) => c.ageGroupsEnabled,
+    );
+    const ageGroupsEnabled = ageGroupsEnabledComps.length > 0;
+
+    // Firma normalizada: mismo conjunto de label+minAge+maxAge, sin importar el orden
+    const groupSignature = (comp) =>
+      resolveAgeGroups(comp)
+        .map((g) => `${g.label}|${g.minAge ?? ""}|${g.maxAge ?? ""}`)
+        .sort()
+        .join(",");
+
+    let ageGroupsHomogeneus = true;
+    if (ageGroupsEnabled) {
+      if (ageGroupsEnabledComps.length !== competitions.length) {
+        // No todas las competiciones de la serie tienen grupos de edad activados
+        ageGroupsHomogeneus = false;
+      } else if (ageGroupsEnabledComps.length > 1) {
+        const signature = groupSignature(ageGroupsEnabledComps[0]);
+        ageGroupsHomogeneus = ageGroupsEnabledComps.every(
+          (c) => groupSignature(c) === signature,
+        );
+      }
+    }
+
+    const ageGroupsSource = ageGroupsEnabledComps[0] || null;
+    const seriesAgeGroups =
+      ageGroupsEnabled && ageGroupsHomogeneus && ageGroupsSource
+        ? resolveAgeGroups(ageGroupsSource)
+        : [];
 
     let ageGroupLabel = null;
-    if (ageGroup && ageGroupsSource) {
+    if (ageGroup && ageGroupsHomogeneus && ageGroupsSource) {
       ageGroupLabel =
         seriesAgeGroups.find((g) => g._id === ageGroup)?.label || null;
     }
@@ -136,6 +160,7 @@ router.get("/series/:seriesName", async (req, res) => {
         events: c.events,
       })),
       ageGroupsEnabled,
+      ageGroupsHomogeneus,
       ageGroups: seriesAgeGroups,
       // El sistema de la serie es el de la primera competición
       // (se asume homogéneo dentro de una serie)

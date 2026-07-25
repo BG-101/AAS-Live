@@ -55,7 +55,8 @@ function SeriesSOR() {
       </div>
     );
 
-  const { rankings, competitions, ageGroupsEnabled } = data;
+  const { rankings, competitions, ageGroupsEnabled, ageGroupsHomogeneus } =
+    data;
 
   return (
     <div className="min-h-screen bg-almeria-dark text-almeria-light p-8">
@@ -79,32 +80,43 @@ function SeriesSOR() {
           </p>
         </div>
 
-        {/* Pestañas de grupos de edad */}
-        {ageGroupsEnabled && ageGroupsList.length > 0 && (
-          <div className="flex gap-2 mb-6 flex-wrap">
-            <button
-              onClick={() => setActiveGroup(null)}
-              className={`px-4 py-2 rounded font-bold text-sm transition ${
-                !activeGroup
-                  ? "bg-almeria-orange text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              General
-            </button>
-            {ageGroupsList.map((group) => (
+        {/* Pestañas de grupos de edad (solo si todas las competiciones tienen la misma config) */}
+        {ageGroupsEnabled &&
+          ageGroupsHomogeneus &&
+          ageGroupsList.length > 0 && (
+            <div className="flex gap-2 mb-6 flex-wrap">
               <button
-                key={group._id}
-                onClick={() => setActiveGroup(group._id)}
+                onClick={() => setActiveGroup(null)}
                 className={`px-4 py-2 rounded font-bold text-sm transition ${
-                  activeGroup === group._id
+                  !activeGroup
                     ? "bg-almeria-orange text-white"
                     : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                 }`}
               >
-                {group.label}
+                General
               </button>
-            ))}
+              {ageGroupsList.map((group) => (
+                <button
+                  key={group._id}
+                  onClick={() => setActiveGroup(group._id)}
+                  className={`px-4 py-2 rounded font-bold text-sm transition ${
+                    activeGroup === group._id
+                      ? "bg-almeria-orange text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+        {ageGroupsEnabled && !ageGroupsHomogeneus && (
+          <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-bold px-4 py-3 rounded mb-6">
+            ⚠️ Las competiciones de esta serie usan grupos de edad distintos
+            entre sí (o no todas los tienen activados). No es posible mostrar
+            una clasificación fiable por categoría; se muestra el ranking
+            general combinado.
           </div>
         )}
 
