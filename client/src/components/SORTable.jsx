@@ -52,14 +52,21 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
 
   useEffect(() => {
     const socket = createSocket();
+
     socket.on("resultado_actualizado", (data) => {
       if (data.competitionId === compId) {
         setRefreshTrigger((prev) => prev + 1);
       }
     });
+
     socket.on("competicion_actualizada", (id) => {
       if (id === compId) setRefreshTrigger((prev) => prev + 1);
     });
+
+    socket.on("competidor_actualizado", (data) => {
+      if (data.competitionId === compId) setRefreshTrigger((prev) => prev + 1);
+    });
+
     return () => socket.disconnect();
   }, [compId]);
 
