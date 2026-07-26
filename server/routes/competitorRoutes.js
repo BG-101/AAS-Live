@@ -289,7 +289,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     }
 
     const io = req.app.get("socketio");
-    if (io) io.emit("competidor_actualizado", { competitionId, compId });
+    if (io) io.emit("competidor_actualizado", { competitionId: compId });
 
     res.status(201).json(newCompetitor);
   } catch (err) {
