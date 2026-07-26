@@ -110,6 +110,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       .json({ message: "ID de competición o competidor inválido." });
   }
 
+  const session = await mongoose.startSession();
   try {
     const comp = await getCompetitionOrFail(req.params.id, res);
     if (!comp) return;
@@ -147,13 +148,15 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
 
     const { best, average } = calculateStats(times, format);
 
+    session.startTransaction();
+
     // Busca si ya existe un resultado y actualízalo o créalo
     let result = await Result.findOne({
       competition: competitionId,
       competitor: competitorId,
       event,
       round: roundNum,
-    });
+    }).session(session);
 
     const isNew = !result;
     const oldTimes = result ? result.times : null;
@@ -162,9 +165,9 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       result.times = times;
       result.best = best;
       result.average = average;
-      await result.save();
+      await result.save({ session });
     } else {
-      result = await Result.create({
+      result = new Result({
         competition: competitionId,
         competitor: competitorId,
         event,
@@ -173,23 +176,33 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
         best,
         average,
       });
+      await result.save({ session });
     }
 
     // Registra la acción en la auditoría
-    await AuditLog.create({
-      competition: competitionId,
-      competitorName: competitorDoc?.name || "Desconocido",
-      event: event,
-      round: roundNum,
-      action: isNew ? "NUEVO" : "MODIFICADO",
-      oldTimes: oldTimes || [],
-      newTimes: times,
-      user: req.user?.username || "Desconocido",
-    });
+    await AuditLog.create(
+      [
+        {
+          competition: competitionId,
+          competitorName: competitorDoc?.name || "Desconocido",
+          event: event,
+          round: roundNum,
+          action: isNew ? "NUEVO" : "MODIFICADO",
+          oldTimes: oldTimes || [],
+          newTimes: times,
+          user: req.user?.username || "Desconocido",
+        },
+      ],
+      { session },
+    );
 
+    await session.commitTransaction();
+    session.endSession();
     // Envía la respuesta HTTP para que el cliente no se quede esperando
     res.json(result);
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("Error guardando tiempos:", err);
     return res
       .status(500)
