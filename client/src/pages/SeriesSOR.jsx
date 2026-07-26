@@ -18,10 +18,12 @@ function SeriesSOR() {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [ageGroupsList, setAgeGroupsList] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     setLoading(true);
     setData(null);
+    setError(null);
     const url = `${API_URL}/api/sor/series/${encodeURIComponent(seriesName)}${
       activeGroup ? `?ageGroup=${activeGroup}` : ""
     }`;
@@ -31,7 +33,12 @@ function SeriesSOR() {
         setData(res.data);
         if (res.data.ageGroups) setAgeGroupsList(res.data.ageGroups);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(
+          err.response?.data?.message || "Error al cargar el SOR de la serie.",
+        );
+      })
       .finally(() => setLoading(false));
   }, [seriesName, activeGroup, refreshTrigger]);
 
@@ -52,6 +59,19 @@ function SeriesSOR() {
     return (
       <div className="min-h-screen bg-almeria-dark text-white flex items-center justify-center text-2xl font-bold">
         ⌛ Calculando SOR de la serie...
+      </div>
+    );
+
+  if (error || !data)
+    return (
+      <div className="min-h-screen bg-almeria-dark text-white flex flex-col items-center justify-center text-center px-8 py-4">
+        <p className="text-4xl">⚠️</p>
+        <p className="text-xl font-bold">
+          {error || "No se pudo cargar el SOR de la serie."}
+        </p>
+        <Link to="/" className="text-almeria-orange hover:underline">
+          ← Volver al inicio
+        </Link>
       </div>
     );
 
