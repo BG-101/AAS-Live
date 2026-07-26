@@ -177,15 +177,17 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Crea el usuario con el rol especificado (o "Delegado" por defecto)
+    const assignedRole = role || "Delegado";
+
     const newUser = new User({
       username: cleanUsername,
       password: hashedPassword,
-      role: role || "Delegado",
+      role: assignedRole,
     });
 
     await newUser.save();
     res.status(201).json({
-      message: `Usuario ${cleanUsername} (${role}) creado correctamente.`,
+      message: `Usuario ${cleanUsername} (${assignedRole}) creado correctamente.`,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
