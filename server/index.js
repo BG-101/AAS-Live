@@ -7,6 +7,13 @@
 // Carga las variables de entorno desde el archivo .env (MONGO_URI, JWT_SECRET, etc.)
 require("dotenv").config();
 
+if (!process.env.JWT_SECRET) {
+  console.error(
+    "❌ FATAL: JWT_SECRET no definido en .env. Abortando arranque.",
+  );
+  process.exit(1);
+}
+
 // --- Dependencias principales ---
 const express = require("express");
 const cors = require("cors"); // Permite peticiones cross-origin desde el frontend
