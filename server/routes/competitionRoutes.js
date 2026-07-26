@@ -12,6 +12,7 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const Result = require("../models/Result");
 const mongoose = require("mongoose");
+const { getCompetitionOrFail } = require("../utils/dbHelpers");
 
 // ============================================================
 // GET /api/competitions
@@ -155,9 +156,8 @@ router.post(
   async (req, res) => {
     const { event, currentRoundNumber } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca la ronda actual en la configuración
       const currentRound = comp.rounds.find(
@@ -229,9 +229,8 @@ router.put(
       cutoff,
     } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca el índice de la ronda en el array
       const roundIndex = comp.rounds.findIndex(
@@ -274,9 +273,8 @@ router.put(
   async (req, res) => {
     const { event, roundNumber, status } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca la ronda y actualiza su estado
       const roundIndex = comp.rounds.findIndex(
@@ -337,6 +335,9 @@ router.delete(
   async (req, res) => {
     const { event, fromRound } = req.body;
     try {
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
+
       await Result.deleteMany({
         competition: req.params.id,
         event,

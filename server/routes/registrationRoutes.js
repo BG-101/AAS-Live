@@ -6,6 +6,7 @@ const Competitor = require("../models/Competitor");
 const Competition = require("../models/Competition");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
+const { getCompetitionOrFail } = require("../utils/dbHelpers");
 
 // GET /api/registrations/:compId - lista (admins)
 router.get(
@@ -31,12 +32,8 @@ router.post(
   async (req, res) => {
     try {
       const secret = req.headers["x-webhook-secret"] || req.query.secret;
-      const comp = await Competition.findOne({
-        _id: req.params.compId,
-        isDeleted: { $ne: true },
-      });
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
       if (!comp.webhookSecret || comp.webhookSecret !== secret)
         return res.status(401).json({ message: "Secreto inválido." });
 
@@ -148,12 +145,8 @@ router.patch(
       if (reg.status === "approved")
         return res.status(400).json({ message: "Ya aprobada." });
 
-      const comp = await Competition.findOne({
-        _id: reg.competition,
-        isDeleted: { $ne: true },
-      });
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       const currentCount = await Competitor.countDocuments({
         competition: reg.competition,

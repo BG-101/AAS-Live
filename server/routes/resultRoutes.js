@@ -16,6 +16,7 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
 const { calculateStats, processAdvancements } = require("../utils/wcaLogic");
+const { getCompetitionOrFail } = require("../utils/dbHelpers");
 
 // ============================================================
 // GET /api/results/:compId/:event/:round
@@ -110,9 +111,8 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
   }
 
   try {
-    const comp = await Competition.findById(competitionId);
-    if (!comp)
-      return res.status(404).json({ message: "Competición no encontrada." });
+    const comp = await getCompetitionOrFail(req.params.id, res);
+    if (!comp) return;
 
     const competitorDoc = await Competitor.findOne({
       _id: competitorId,
