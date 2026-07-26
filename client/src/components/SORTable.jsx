@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socket";
 
 /**
  * @param {string} compId - ID de la competición
@@ -51,9 +51,7 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
   }, [compId, activeGroup, refreshTrigger]);
 
   useEffect(() => {
-    const socket = io("https://aas-live.onrender.com", {
-      withCredentials: true,
-    });
+    const socket = createSocket();
 
     socket.on("resultado_actualizado", (data) => {
       if (data.competitionId === compId) {
@@ -63,6 +61,10 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
 
     socket.on("competicion_actualizada", (id) => {
       if (id === compId) setRefreshTrigger((prev) => prev + 1);
+    });
+
+    socket.on("competidor_actualizado", (data) => {
+      if (data.competitionId === compId) setRefreshTrigger((prev) => prev + 1);
     });
 
     return () => socket.disconnect();

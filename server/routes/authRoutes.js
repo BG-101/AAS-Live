@@ -31,9 +31,15 @@ const loginLimiter = rateLimit({
 router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
+    if (typeof username !== "string" || typeof password !== "string") {
+      return res
+        .status(400)
+        .json({ message: "Usuario o contraseña incorrectos." });
+    }
+    const cleanUsername = username.trim();
 
     // Busca el usuario en la base de datos
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: cleanUsername });
     if (!user)
       return res
         .status(400)
@@ -57,7 +63,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // Esto protege contra ataques XSS
     res.cookie("jwtToken", token, {
       httpOnly: true, // No accesible desde JS del navegador
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Protección contra CSRF
       maxAge: 48 * 60 * 60 * 1000, // Expira en 48 horas (en ms)
     });
@@ -86,7 +92,7 @@ router.get("/me", auth(), async (req, res) => {
 router.post("/logout", (req, res) => {
   res.clearCookie("jwtToken", {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   }); // Elimina la cookie del navegador
   res.json({ message: "Sesión cerrada correctamente" });
@@ -149,8 +155,20 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
       return res.status(400).json({ message: "Rol no válido." });
     }
 
+    if (
+      typeof username !== "string" ||
+      typeof password !== "string" ||
+      !username.trim() ||
+      password.length < 8
+    ) {
+      return res.status(400).json({
+        message: "Usuario requerido y contraseña de mínimo 8 caracteres.",
+      });
+    }
+    const cleanUsername = username.trim();
+
     // Verifica que no exista ya un usuario con ese nombre
-    const existingUser = await User.findOne({ username });
+    const existingUser = await User.findOne({ username: cleanUsername });
     if (existingUser)
       return res.status(400).json({ message: "El usuario ya existe." });
 
@@ -159,16 +177,18 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Crea el usuario con el rol especificado (o "Delegado" por defecto)
+    const assignedRole = role || "Delegado";
+
     const newUser = new User({
-      username,
+      username: cleanUsername,
       password: hashedPassword,
-      role: role || "Delegado",
+      role: assignedRole,
     });
 
     await newUser.save();
-    res
-      .status(201)
-      .json({ message: `Usuario ${username} (${role}) creado correctamente.` });
+    res.status(201).json({
+      message: `Usuario ${cleanUsername} (${assignedRole}) creado correctamente.`,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

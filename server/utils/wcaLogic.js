@@ -506,6 +506,7 @@ async function calculateSOR(compId, ageGroup = null) {
         competitorMap[cid].eventRanks[event] = penalty;
         competitorMap[cid].totalScore += penalty;
       });
+      totalAbsentPenalty += penalty;
       continue;
     }
 
@@ -537,7 +538,7 @@ async function calculateSOR(compId, ageGroup = null) {
     });
 
     // Ausente = exactamente 1 más que el útlimo participante (sea válido o DNF)
-    const absentScore = isF1 ? 0 : maxAssignedScore + 1;
+    const absentScore = computeAbsentScore(isF1, maxAssignedScore);
     totalAbsentPenalty += absentScore;
 
     allCompetitors.forEach((c) => {
@@ -563,6 +564,12 @@ async function calculateSOR(compId, ageGroup = null) {
     ageGroups,
   };
 }
+
+// SOR: ausente puntúa 1 más que el peor score realmente asignado en el evento
+// (garantiza que quede siempre estrictamente peor que cualquier DNF/válido).
+// F1: ausente no puntúa (0), no hay descuento por no presentarse
+const computeAbsentScore = (isF1, maxAssignedScore) =>
+  isF1 ? 0 : maxAssignedScore + 1;
 
 module.exports = {
   calculateStats,

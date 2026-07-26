@@ -129,6 +129,8 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
   try {
     const compId = req.body.competitionId;
     const comp = await Competition.findById(req.body.competitionId);
+    if (!comp)
+      return res.status(404).json({ message: "Competición no encontrada." });
 
     // Comprueba que no se haya alcanzado el límite de competidores
     const currentCount = await Competitor.countDocuments({
@@ -286,6 +288,9 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       }
     }
 
+    const io = req.app.get("socketio");
+    if (io) io.emit("competidor_actualizado", { competitionId: compId });
+
     res.status(201).json(newCompetitor);
   } catch (err) {
     // Error 11000 = violación de índice único (nombre duplicado en MongoDB)
@@ -325,6 +330,12 @@ router.delete(
         isDeleted: true,
         name: deletedName,
       });
+
+      const io = req.app.get("socketio");
+      if (io)
+        io.emit("competidor_actualizado", {
+          competitionId: comp.competition.toString(),
+        });
 
       res.json({ message: "Competidor movido a la papelera" });
     } catch (err) {
