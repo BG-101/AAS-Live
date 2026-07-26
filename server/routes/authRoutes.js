@@ -149,7 +149,12 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
       return res.status(400).json({ message: "Rol no válido." });
     }
 
-    if (!username?.trim() || !password || password.length < 8) {
+    if (
+      typeof username !== "string" ||
+      typeof password !== "string" ||
+      !username.trim() ||
+      password.length < 8
+    ) {
       return res.status(400).json({
         message: "Usuario requerido y contraseña de mínimo 8 caracteres.",
       });
