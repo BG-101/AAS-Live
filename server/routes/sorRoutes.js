@@ -57,7 +57,10 @@ router.get("/series/:seriesName", async (req, res) => {
     // Firma normalizada: mismo conjunto de label+minAge+maxAge, sin importar el orden
     const groupSignature = (comp) =>
       resolveAgeGroups(comp)
-        .map((g) => `${g.label}|${g.minAge ?? ""}|${g.maxAge ?? ""}`)
+        .map(
+          (g) =>
+            `${g.label.trim().toLowerCase()}|${g.minAge ?? ""}|${g.maxAge ?? ""}`,
+        )
         .sort()
         .join(",");
 
@@ -92,8 +95,11 @@ router.get("/series/:seriesName", async (req, res) => {
         let localAgeGroupId = null;
         if (ageGroupLabel && comp.ageGroupsEnabled) {
           const localGroups = resolveAgeGroups(comp);
+          const normalizedTarget = ageGroupLabel.trim().toLowerCase();
           localAgeGroupId =
-            localGroups.find((g) => g.label === ageGroupLabel)?._id || null;
+            localGroups.find(
+              (g) => g.label.trim().toLowerCase() === normalizedTarget,
+            )?._id || null;
         }
         return {
           comp,
