@@ -31,9 +31,15 @@ const loginLimiter = rateLimit({
 router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
+    if (typeof username !== "string" || typeof password !== "string") {
+      return res
+        .status(400)
+        .json({ message: "Usuario o contraseña incorrectos." });
+    }
+    const cleanUsername = username.trim();
 
     // Busca el usuario en la base de datos
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username: cleanUsername });
     if (!user)
       return res
         .status(400)
