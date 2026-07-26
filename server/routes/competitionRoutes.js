@@ -114,6 +114,24 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     ageGroups,
   } = req.body;
 
+  if (!Array.isArray(events) || events.length === 0)
+    return res
+      .status(400)
+      .json({ message: "Debes incluir al menos 1 evento." });
+  if (!Array.isArray(rounds) || rounds.length === 0)
+    return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
+  if (
+    competitorLimit !== undefined &&
+    (isNaN(competitorLimit) || Number(competitorLimit) <= 0)
+  )
+    return res
+      .status(400)
+      .json({ message: "competitorLimit debe ser un número positivo." });
+  if (new Date(startDate) > new Date(endDate))
+    return res
+      .status(400)
+      .json({ message: "startDate no puede ser posterior a endDate." });
+
   // Construye el documento de la competición
   const competition = new Competition({
     wcaId,

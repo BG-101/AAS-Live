@@ -97,6 +97,19 @@ router.post(
       if (!name?.trim())
         return res.status(400).json({ message: "Nombre requerido." });
 
+      const dup = await Registration.findOne({
+        competition: req.params.compId,
+        name: name.trim(),
+        status: { $in: ["pending", "approved"] },
+      });
+      if (dup)
+        return res
+          .status(400)
+          .json({
+            message:
+              "Ya existe una inscripción pendiente/aprobada con ese nombre.",
+          });
+
       const reg = await Registration.create({
         competition: req.params.compId,
         name: name.trim(),
@@ -107,6 +120,10 @@ router.post(
         email: email?.trim() || "",
         events: Array.isArray(events) ? events : [],
       });
+
+      req.app
+        .get("socketio")
+        ?.emit("nueva_inscripcion", { competitionId: req.params.compId });
       res.status(201).json(reg);
     } catch (err) {
       res.status(500).json({ message: err.message });
