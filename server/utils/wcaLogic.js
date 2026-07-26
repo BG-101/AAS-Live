@@ -506,6 +506,7 @@ async function calculateSOR(compId, ageGroup = null) {
         competitorMap[cid].eventRanks[event] = penalty;
         competitorMap[cid].totalScore += penalty;
       });
+      totalAbsentPenalty += penalty;
       continue;
     }
 
@@ -538,6 +539,7 @@ async function calculateSOR(compId, ageGroup = null) {
 
     // Ausente = exactamente 1 más que el útlimo participante (sea válido o DNF)
     const absentScore = computeAbsentScore(isF1, maxAssignedScore);
+    totalAbsentPenalty += absentScore;
 
     allCompetitors.forEach((c) => {
       const cid = c._id.toString();
