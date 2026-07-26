@@ -131,7 +131,12 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     const roundConfig = comp.rounds.find(
       (r) => r.event === event && r.roundNumber === roundNum,
     );
-    const format = roundConfig ? roundConfig.format : "a";
+    if (!roundConfig) {
+      return res.status(404).json({
+        message: "La ronda especificada no existe para este evento.",
+      });
+    }
+    const format = roundConfig.format;
 
     const expectedLength = format === "a" ? 5 : 3;
     if (times.length !== expectedLength) {
