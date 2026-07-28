@@ -97,6 +97,9 @@ router.post(
       if (!name?.trim())
         return res.status(400).json({ message: "Nombre requerido." });
 
+      const comp = await getCompetitionOrFail(req.params.compId, res);
+      if (!comp) return;
+
       const dup = await Registration.findOne({
         competition: req.params.compId,
         name: name.trim(),

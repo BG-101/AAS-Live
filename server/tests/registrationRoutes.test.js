@@ -157,6 +157,20 @@ describe("POST /api/registrations/manual/:compId", () => {
     );
   });
 
+  test("competición borrada -> 404 y no crea inscripción", async () => {
+    const comp = await makeCompetition();
+    await Competition.findByIdAndUpdate(comp._id, { isDeleted: true });
+
+    const res = await request(app)
+      .post(`/api/registrations/manual/${comp._id}`)
+      .set("Cookie", cookie)
+      .send({ name: "Carlos", events: ["3x3"] });
+
+    expect(res.status).toBe(404);
+    const count = await Registration.countDocuments({ competition: comp._id });
+    expect(count).toBe(0);
+  });
+
   test("nombre duplicado con inscripción pending/approved existente -> 400", async () => {
     const comp = await makeCompetition();
     await Registration.create({
