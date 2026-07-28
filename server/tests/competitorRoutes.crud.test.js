@@ -209,7 +209,7 @@ describe("DELETE /api/competitors/empty-trash/:compId", () => {
     expect(await Result.find({ competitor: trashed._id })).toEqual([]);
   });
 
-  test("no afecta competidores activos de otras competiciones", async () => {
+  test("no elimina competidores borrados de otras competiciones", async () => {
     await createUser("admin2", "clave12345", "SuperAdmin");
     const cookie = await loginAs(app, "admin2", "clave12345");
     const comp = await makeCompetition();
