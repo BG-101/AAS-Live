@@ -21,6 +21,7 @@ const loginLimiter = rateLimit({
     message:
       "Demasiados intentos de inicio de sesión. Ha sido bloqueado por 15 minutos.",
   },
+  skip: () => process.env.DISABLE_RATE_LIMIT === "true", // solo tests, false por defecto
 });
 
 // ============================================================

@@ -32,7 +32,7 @@ router.post(
   async (req, res) => {
     try {
       const secret = req.headers["x-webhook-secret"] || req.query.secret;
-      const comp = await getCompetitionOrFail(req.params.id, res);
+      const comp = await getCompetitionOrFail(req.params.compId, res);
       if (!comp) return;
       if (!comp.webhookSecret || comp.webhookSecret !== secret)
         return res.status(401).json({ message: "Secreto inválido." });
@@ -103,12 +103,10 @@ router.post(
         status: { $in: ["pending", "approved"] },
       });
       if (dup)
-        return res
-          .status(400)
-          .json({
-            message:
-              "Ya existe una inscripción pendiente/aprobada con ese nombre.",
-          });
+        return res.status(400).json({
+          message:
+            "Ya existe una inscripción pendiente/aprobada con ese nombre.",
+        });
 
       const reg = await Registration.create({
         competition: req.params.compId,
@@ -162,7 +160,7 @@ router.patch(
       if (reg.status === "approved")
         return res.status(400).json({ message: "Ya aprobada." });
 
-      const comp = await getCompetitionOrFail(req.params.id, res);
+      const comp = await getCompetitionOrFail(reg.competition, res);
       if (!comp) return;
 
       const currentCount = await Competitor.countDocuments({

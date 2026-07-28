@@ -110,9 +110,8 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       .json({ message: "ID de competición o competidor inválido." });
   }
 
-  const session = await mongoose.startSession();
   try {
-    const comp = await getCompetitionOrFail(req.params.id, res);
+    const comp = await getCompetitionOrFail(competitionId, res);
     if (!comp) return;
 
     const competitorDoc = await Competitor.findOne({
@@ -148,15 +147,13 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
 
     const { best, average } = calculateStats(times, format);
 
-    session.startTransaction();
-
     // Busca si ya existe un resultado y actualízalo o créalo
     let result = await Result.findOne({
       competition: competitionId,
       competitor: competitorId,
       event,
       round: roundNum,
-    }).session(session);
+    });
 
     const isNew = !result;
     const oldTimes = result ? result.times : null;
@@ -165,7 +162,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
       result.times = times;
       result.best = best;
       result.average = average;
-      await result.save({ session });
+      await result.save();
     } else {
       result = new Result({
         competition: competitionId,
@@ -176,86 +173,81 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
         best,
         average,
       });
-      await result.save({ session });
+      await result.save();
     }
 
     // Registra la acción en la auditoría
-    await AuditLog.create(
-      [
-        {
-          competition: competitionId,
-          competitorName: competitorDoc?.name || "Desconocido",
-          event: event,
-          round: roundNum,
-          action: isNew ? "NUEVO" : "MODIFICADO",
-          oldTimes: oldTimes || [],
-          newTimes: times,
-          user: req.user?.username || "Desconocido",
-        },
-      ],
-      { session },
-    );
+    await AuditLog.create([
+      {
+        competition: competitionId,
+        competitorName: competitorDoc?.name || "Desconocido",
+        event: event,
+        round: roundNum,
+        action: isNew ? "NUEVO" : "MODIFICADO",
+        oldTimes: oldTimes || [],
+        newTimes: times,
+        user: req.user?.username || "Desconocido",
+      },
+    ]);
 
-    await session.commitTransaction();
-    session.endSession();
+    // Calcula y emite los resultados actualizados por WebSocket ANTES de responder.
+    // (Antes vivía fuera del try/catch, sin await: quedaba como trabajo en segundo
+    // plano no rastreado, causando condiciones de carrera en tests y la posibilidad
+    // de servir una respuesta HTTP inconsitente con el evento de socket emitido).
+    try {
+      const updatedResults = await Result.find({
+        competition: competitionId,
+        event,
+        round: roundNum,
+      })
+        .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
+        .lean();
+
+      const validUpdated = updatedResults.filter((r) => r.competitor != null);
+      const compForSocket = await Competition.findById(competitionId);
+      const roundConfigForSocket = compForSocket.rounds.find(
+        (r) => r.event === event && r.roundNumber === roundNum,
+      );
+
+      const processedForSocket = await processAdvancements(
+        validUpdated,
+        competitionId,
+        event,
+        roundConfigForSocket,
+        roundNum,
+        compForSocket.ageGroupsEnabled || false,
+      );
+
+      const io = req.app.get("socketio");
+
+      if (io) {
+        io.emit("resultado_actualizado", {
+          competitionId,
+          event,
+          round: roundNum,
+          results: processedForSocket, // ← payload completo
+        });
+      }
+    } catch (socketErr) {
+      // Si falla el cálculo para el socket, emite sin payload como fallback
+      console.error("Error generando payload WebSocket:", socketErr);
+      const io = req.app.get("socketio");
+      if (io) {
+        io.emit("resultado_actualizado", {
+          competitionId,
+          event,
+          round: roundNum,
+        });
+      }
+    }
+
     // Envía la respuesta HTTP para que el cliente no se quede esperando
     res.json(result);
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
     console.error("Error guardando tiempos:", err);
     return res
       .status(500)
       .json({ message: "Error interno del servidor al guardar." });
-  }
-
-  // Calcula y emite los resultados actualizados directamente por WebSocket,
-  // evitando que cada cliente tenga que hacer un GET adicional
-  try {
-    const updatedResults = await Result.find({
-      competition: competitionId,
-      event,
-      round: roundNum,
-    })
-      .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
-      .lean();
-
-    const validUpdated = updatedResults.filter((r) => r.competitor != null);
-    const compForSocket = await Competition.findById(competitionId);
-    const roundConfigForSocket = compForSocket.rounds.find(
-      (r) => r.event === event && r.roundNumber === roundNum,
-    );
-
-    const processedForSocket = await processAdvancements(
-      validUpdated,
-      competitionId,
-      event,
-      roundConfigForSocket,
-      roundNum,
-      compForSocket.ageGroupsEnabled || false,
-    );
-
-    const io = req.app.get("socketio");
-
-    if (io) {
-      io.emit("resultado_actualizado", {
-        competitionId,
-        event,
-        round: roundNum,
-        results: processedForSocket, // ← payload completo
-      });
-    }
-  } catch (socketErr) {
-    // Si falla el cálculo para el socket, emite sin payload como fallback
-    console.error("Error generando payload WebSocket:", socketErr);
-    const io = req.app.get("socketio");
-    if (io) {
-      io.emit("resultado_actualizado", {
-        competitionId,
-        event,
-        round: roundNum,
-      });
-    }
   }
 });
 
