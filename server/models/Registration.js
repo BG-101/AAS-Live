@@ -32,7 +32,12 @@ registrationSchema.index({ competition: 1, status: 1 });
 // sparse: true -> null no cuenta para la unicidad (inscripciones manuales coexisten)
 registrationSchema.index(
   { competition: 1, formResponseId: 1 },
-  { unique: true, sparse: true },
+  {
+    unique: true,
+    partialFilterExpression: {
+      formResponseId: { $exists: true, $type: "string" },
+    },
+  },
 );
 
 module.exports = mongoose.model("Registration", registrationSchema);

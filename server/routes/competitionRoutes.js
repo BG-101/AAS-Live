@@ -12,6 +12,7 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const Result = require("../models/Result");
 const mongoose = require("mongoose");
+const { getCompetitionOrFail } = require("../utils/dbHelpers");
 
 // ============================================================
 // GET /api/competitions
@@ -113,6 +114,24 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     ageGroups,
   } = req.body;
 
+  if (!Array.isArray(events) || events.length === 0)
+    return res
+      .status(400)
+      .json({ message: "Debes incluir al menos 1 evento." });
+  if (!Array.isArray(rounds) || rounds.length === 0)
+    return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
+  if (
+    competitorLimit !== undefined &&
+    (isNaN(competitorLimit) || Number(competitorLimit) <= 0)
+  )
+    return res
+      .status(400)
+      .json({ message: "competitorLimit debe ser un número positivo." });
+  if (new Date(startDate) > new Date(endDate))
+    return res
+      .status(400)
+      .json({ message: "startDate no puede ser posterior a endDate." });
+
   // Construye el documento de la competición
   const competition = new Competition({
     wcaId,
@@ -155,9 +174,8 @@ router.post(
   async (req, res) => {
     const { event, currentRoundNumber } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca la ronda actual en la configuración
       const currentRound = comp.rounds.find(
@@ -229,9 +247,8 @@ router.put(
       cutoff,
     } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca el índice de la ronda en el array
       const roundIndex = comp.rounds.findIndex(
@@ -274,9 +291,8 @@ router.put(
   async (req, res) => {
     const { event, roundNumber, status } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca la ronda y actualiza su estado
       const roundIndex = comp.rounds.findIndex(
@@ -337,6 +353,9 @@ router.delete(
   async (req, res) => {
     const { event, fromRound } = req.body;
     try {
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
+
       await Result.deleteMany({
         competition: req.params.id,
         event,

@@ -21,6 +21,9 @@ const loginLimiter = rateLimit({
     message:
       "Demasiados intentos de inicio de sesión. Ha sido bloqueado por 15 minutos.",
   },
+  skip: () =>
+    process.env.NODE_ENV === "test" &&
+    process.env.DISABLE_RATE_LIMIT === "true", // solo tests, false por defecto
 });
 
 // ============================================================
@@ -37,6 +40,11 @@ router.post("/login", loginLimiter, async (req, res) => {
         .json({ message: "Usuario o contraseña incorrectos." });
     }
     const cleanUsername = username.trim();
+
+    if (!cleanUsername || !password)
+      return res
+        .status(400)
+        .json({ message: "Usuario o contraseña incorrectos." });
 
     // Busca el usuario en la base de datos
     const user = await User.findOne({ username: cleanUsername });
@@ -159,10 +167,13 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
       typeof username !== "string" ||
       typeof password !== "string" ||
       !username.trim() ||
+      username.trim().length > 32 ||
+      !/^[a-zA-Z0-9_.-]+$/.test(username.trim()) ||
       password.length < 8
     ) {
       return res.status(400).json({
-        message: "Usuario requerido y contraseña de mínimo 8 caracteres.",
+        message:
+          "Usuario inválido (máx 32 caracteres, solo letras/números/._-) y contraseña mín. 8 caracteres.",
       });
     }
     const cleanUsername = username.trim();
