@@ -317,7 +317,7 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 | POST   | `/api/registrations/manual/:compId`               | Admin/Delegado | Crea una inscripción manualmente                 |
 | POST   | `/api/registrations/:compId/generate-secret`      | SuperAdmin     | Genera o regenera el secreto del webhook         |
 | PATCH  | `/api/registrations/:id/approve`                  | Admin/Delegado | Aprueba una inscripción y crea el competidor     |
-| PATCH  | `/api/registrations/:id/reject`                   | Admin/Delegado | Rechaza una inscripción con motivo opcional     |
+| PATCH  | `/api/registrations/:id/reject`                   | Admin/Delegado | Rechaza una inscripción con motivo opcional      |
 | DELETE | `/api/registrations/:id`                          | SuperAdmin     | Elimina físicamente una inscripción              |
 | GET    | `/api/results/:compId/:event/:round`              | —              | Resultados de una ronda                          |
 | POST   | `/api/results`                                    | Admin/Delegado | Guarda los tiempos de un competidor              |
