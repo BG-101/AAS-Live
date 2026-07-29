@@ -4,7 +4,10 @@ const createApp = require("../app");
 
 let app;
 
-beforeAll(async () => await connect());
+beforeAll(async () => {
+  process.env.DISABLE_RATE_LIMIT = "false"; // Fuerza el valor: no confiar en que ninguna suite anterior lo haya dejado en "true" bajo --runInBand
+  await connect();
+});
 beforeEach(() => {
   app = createApp();
   app.set("socketio", { emit: jest.fn() });
