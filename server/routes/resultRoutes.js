@@ -147,48 +147,70 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
 
     const { best, average } = calculateStats(times, format);
 
-    // Busca si ya existe un resultado y actualízalo o créalo
-    let result = await Result.findOne({
-      competition: competitionId,
-      competitor: competitorId,
-      event,
-      round: roundNum,
-    });
+    // Result + AuditLog deben confirmarse atómicamente: si el AuditLog falla,
+    // el Result no debe quedar persistido sin su rastro de auditoría.
+    let result;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const existing = await Result.findOne({
+          competition: competitionId,
+          competitor: competitorId,
+          event,
+          round: roundNum,
+        }).session(session);
 
-    const isNew = !result;
-    const oldTimes = result ? result.times : null;
+        const isNew = !existing;
+        const oldTimes = existing ? existing.times : null;
 
-    if (result) {
-      result.times = times;
-      result.best = best;
-      result.average = average;
-      await result.save();
-    } else {
-      result = new Result({
-        competition: competitionId,
-        competitor: competitorId,
-        event,
-        round: roundNum,
-        times,
-        best,
-        average,
+        if (existing) {
+          existing.times = times;
+          existing.best = best;
+          existing.average = average;
+          await existing.save({ session });
+          result = existing;
+        } else {
+          const created = await Result.create(
+            [
+              {
+                competition: competitionId,
+                competitor: competitorId,
+                event,
+                round: roundNum,
+                times,
+                best,
+                average,
+              },
+            ],
+            { session },
+          );
+          result = created[0];
+        }
+
+        await AuditLog.create(
+          [
+            {
+              competition: competitionId,
+              competitorName: competitorDoc?.name || "Desconocido",
+              event,
+              round: roundNum,
+              action: isNew ? "NUEVO" : "MODIFICADO",
+              oldTimes: oldTimes || [],
+              newTimes: times,
+              user: req.user?.username || "Desconocido",
+            },
+          ],
+          { session },
+        );
       });
-      await result.save();
+    } catch (err) {
+      console.error("Error guardando resultados y auditoría:", err);
+      return res
+        .status(500)
+        .json({ message: "Error interno del servidor al guardar." });
+    } finally {
+      session.endSession();
     }
-
-    // Registra la acción en la auditoría
-    await AuditLog.create([
-      {
-        competition: competitionId,
-        competitorName: competitorDoc?.name || "Desconocido",
-        event: event,
-        round: roundNum,
-        action: isNew ? "NUEVO" : "MODIFICADO",
-        oldTimes: oldTimes || [],
-        newTimes: times,
-        user: req.user?.username || "Desconocido",
-      },
-    ]);
 
     // Calcula y emite los resultados actualizados por WebSocket ANTES de responder.
     // (Antes vivía fuera del try/catch, sin await: quedaba como trabajo en segundo
