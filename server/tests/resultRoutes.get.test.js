@@ -129,6 +129,14 @@ describe("GET /api/results/:compId/:event/:round", () => {
     expect(res.body[0].advances).toBe(false);
   });
 
+  test("compId válido pero inexistente -> 404", async () => {
+    const res = await request(app).get(
+      "/api/results/507f1f77bcf86cd799439011/3x3/1",
+    );
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe("Competición no encontrada.");
+  });
+
   test("compId con formato inválido -> 400", async () => {
     const res = await request(app).get("/api/results/no-es-un-id/3x3/1");
     expect(res.status).toBe(400);

@@ -41,9 +41,11 @@ const resultSchema = new mongoose.Schema({
   best: { type: Number, default: 0 },
 });
 
-// Índice compuesto para la consulta más frecuente del sistema:
-// buscar todos los resultados de un evento/ronda en una competición
-resultSchema.index({ competition: 1, event: 1, round: 1 });
+// Índice único compuesto para evitar duplicados por competidor/evento/ronda.
+resultSchema.index(
+  { competition: 1, competitor: 1, event: 1, round: 1 },
+  { unique: true },
+);
 
 // Índice para buscar todos los resultados de un competidor (auditoría, borrado)
 resultSchema.index({ competitor: 1 });

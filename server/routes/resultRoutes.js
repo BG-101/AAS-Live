@@ -32,6 +32,8 @@ router.get(
     try {
       // Convierte el parámetro de ronda a número (los params de URL son strings)
       const roundNum = Number(req.params.round);
+      const comp = await getCompetitionOrFail(req.params.compId, res);
+      if (!comp) return;
 
       // Obtiene los resultados con datos del competidor (populate)
       const rawResults = await Result.find({
@@ -49,7 +51,6 @@ router.get(
       const validResults = rawResults.filter((r) => r.competitor != null);
 
       // Busca la configuración de la ronda actual (formato, avance, etc.)
-      const comp = await Competition.findById(req.params.compId);
       const currentRound = comp.rounds.find(
         (r) => r.event === req.params.event && r.roundNumber === roundNum,
       );
@@ -153,7 +154,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        const existing = await Result.findOne({
+        let existing = await Result.findOne({
           competition: competitionId,
           competitor: competitorId,
           event,
@@ -161,7 +162,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
         }).session(session);
 
         const isNew = !existing;
-        const oldTimes = existing ? existing.times : null;
+        let oldTimes = existing ? existing.times : null;
 
         if (existing) {
           existing.times = times;
@@ -170,21 +171,38 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
           await existing.save({ session });
           result = existing;
         } else {
-          const created = await Result.create(
-            [
-              {
-                competition: competitionId,
-                competitor: competitorId,
-                event,
-                round: roundNum,
-                times,
-                best,
-                average,
-              },
-            ],
-            { session },
-          );
-          result = created[0];
+          try {
+            const created = await Result.create(
+              [
+                {
+                  competition: competitionId,
+                  competitor: competitorId,
+                  event,
+                  round: roundNum,
+                  times,
+                  best,
+                  average,
+                },
+              ],
+              { session },
+            );
+            result = created[0];
+          } catch (err) {
+            if (err.code !== 11000) throw err;
+            existing = await Result.findOne({
+              competition: competitionId,
+              competitor: competitorId,
+              event,
+              round: roundNum,
+            }).session(session);
+            if (!existing) throw err;
+            oldTimes = existing.times;
+            existing.times = times;
+            existing.best = best;
+            existing.average = average;
+            await existing.save({ session });
+            result = existing;
+          }
         }
 
         await AuditLog.create(
