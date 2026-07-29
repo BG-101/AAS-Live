@@ -57,7 +57,7 @@ const competitionSchema = new mongoose.Schema({
   ],
 
   // Secreto para autenticar peticiones del webhook de Google Forms
-  webhookSecret: { type: String, default: "" },
+  webhookSecret: { type: String, default: "", select: false },
 
   // Soft delete: si es true, la competición está "en la papelera" y no se muestra
   isDeleted: { type: Boolean, default: false },

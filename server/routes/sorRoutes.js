@@ -7,6 +7,7 @@
 const express = require("express");
 const router = express.Router();
 const Competition = require("../models/Competition");
+const validateObjectId = require("../middleware/validateObjectId");
 const { calculateSOR, resolveAgeGroups } = require("../utils/wcaLogic");
 
 // ============================================================
@@ -183,7 +184,7 @@ router.get("/series/:seriesName", async (req, res) => {
 // Si se pasa ageGroup, filtra competidores y recalcula rangos
 // solo dentro de ese grupo.
 // ============================================================
-router.get("/:compId", async (req, res) => {
+router.get("/:compId", validateObjectId("compId"), async (req, res) => {
   try {
     const { ageGroup } = req.query;
     const data = await calculateSOR(req.params.compId, ageGroup || null);

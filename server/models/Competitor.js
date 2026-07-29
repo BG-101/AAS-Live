@@ -22,8 +22,9 @@ const competitorSchema = new mongoose.Schema({
   age: { type: Number, default: null },
 
   // Fecha de nacimiento. Preferido sobre "age": permite calcular la edad
-  // real en la fecha de inicio de cada competición en la que participe
-  birthDate: { type: Date, default: null },
+  // real en la fecha de inicio de cada competición en la que participe.
+  // Se excluye de las respuestas públicas por defecto.
+  birthDate: { type: Date, default: null, select: false },
 
   // Ciudad o localidad de origen
   locality: { type: String, default: "" },

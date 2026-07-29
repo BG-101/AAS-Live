@@ -339,6 +339,20 @@ function Home() {
             }))
         : [];
 
+    if (formData.ageGroupsEnabled && useCustomAgeGroups) {
+      if (ageGroupsPayload.length === 0)
+        return alert("Añade al menos un grupo de edad con nombre.");
+      const invalid = ageGroupsPayload.find(
+        (g) =>
+          (g.minAge === null && g.maxAge === null) ||
+          (g.minAge !== null && g.maxAge !== null && g.maxAge < g.minAge),
+      );
+      if (invalid)
+        return alert(
+          `El grupo "${invalid.label}" necesita una edad mínima y/o máxima válida.`,
+        );
+    }
+
     try {
       await axios.post(`${API_URL}/api/competitions`, {
         ...formData,

@@ -5,6 +5,7 @@
 
 const express = require("express");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Registration = require("../models/Registration");
 const Competitor = require("../models/Competitor");
@@ -21,7 +22,13 @@ router.get(
   async (req, res) => {
     try {
       const filter = { competition: req.params.compId };
-      if (req.query.status) filter.status = req.query.status;
+      const ALLOWED = ["pending", "approved", "rejected"];
+      const status = typeof req.query.status === "string" ? req.query.status : null;
+      if (status) {
+        if (!ALLOWED.includes(status))
+          return res.status(400).json({ message: "Estado inválido." });
+        filter.status = status;
+      }
       const regs = await Registration.find(filter).sort({ createdAt: -1 });
       res.json(regs);
     } catch (err) {
@@ -36,10 +43,16 @@ router.post(
   validateObjectId("compId"),
   async (req, res) => {
     try {
-      const secret = req.headers["x-webhook-secret"] || req.query.secret;
+      const secret = req.headers["x-webhook-secret"];
       const comp = await getCompetitionOrFail(req.params.compId, res);
       if (!comp) return;
-      if (!comp.webhookSecret || comp.webhookSecret !== secret)
+      const expected = Buffer.from(comp.webhookSecret || "");
+      const provided = Buffer.from(typeof secret === "string" ? secret : "");
+      if (
+        !comp.webhookSecret ||
+        expected.length !== provided.length ||
+        !crypto.timingSafeEqual(expected, provided)
+      )
         return res.status(401).json({ message: "Secreto inválido." });
 
       const {
@@ -56,25 +69,30 @@ router.post(
       if (!name?.trim())
         return res.status(400).json({ message: "Nombre requerido." });
 
+      const parsedAge = Number(age);
+      const responseId =
+        typeof formResponseId === "string" && formResponseId.trim()
+          ? formResponseId.trim()
+          : null;
       let reg;
       try {
         reg = await Registration.create({
           competition: req.params.compId,
           name: name.trim(),
           wcaId: wcaId?.trim() || "",
-          age: age ? Number(age) : null,
+          age: Number.isFinite(parsedAge) ? parsedAge : null,
           birthDate: birthDate || null,
           locality: locality?.trim() || "",
           email: email?.trim() || "",
           events: Array.isArray(events) ? events : [],
-          formResponseId: formResponseId || null,
+          formResponseId: responseId,
           rawData: rawData || req.body,
         });
       } catch (createErr) {
         if (createErr.code === 11000) {
           const dup = await Registration.findOne({
             competition: req.params.compId,
-            formResponseId,
+            formResponseId: responseId,
           });
           return res.json({ message: "Ya registrado.", id: dup?._id });
         }
@@ -116,11 +134,13 @@ router.post(
             "Ya existe una inscripción pendiente/aprobada con ese nombre.",
         });
 
+      const parsedAge = Number(age);
+      const normalizedAge = Number.isFinite(parsedAge) ? parsedAge : null;
       const reg = await Registration.create({
         competition: req.params.compId,
         name: name.trim(),
         wcaId: wcaId?.trim() || "",
-        age: age ? Number(age) : null,
+        age: normalizedAge,
         birthDate: birthDate || null,
         locality: locality?.trim() || "",
         email: email?.trim() || "",
@@ -144,10 +164,11 @@ router.post(
   auth(["SuperAdmin"]),
   async (req, res) => {
     try {
+      const comp = await getCompetitionOrFail(req.params.compId, res);
+      if (!comp) return;
       const secret = crypto.randomBytes(24).toString("hex");
-      await Competition.findByIdAndUpdate(req.params.compId, {
-        webhookSecret: secret,
-      });
+      comp.webhookSecret = secret;
+      await comp.save();
       res.json({ secret });
     } catch (err) {
       res.status(500).json({ message: err.message });
@@ -161,76 +182,114 @@ router.patch(
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
+    const session = await mongoose.startSession();
     try {
-      const reg = await Registration.findById(req.params.id);
+      const reg = await Registration.findById(req.params.id).session(session);
       if (!reg)
         return res.status(404).json({ message: "Inscripción no encontrada." });
       if (reg.status === "approved")
         return res.status(400).json({ message: "Ya aprobada." });
 
-      const comp = await getCompetitionOrFail(reg.competition, res);
-      if (!comp) return;
-
-      const currentCount = await Competitor.countDocuments({
-        competition: reg.competition,
-        isDeleted: { $ne: true },
-      });
-      if (currentCount >= comp.competitorLimit)
-        return res
-          .status(400)
-          .json({ message: `Aforo completo (${comp.competitorLimit}).` });
-
-      const dup = await Competitor.findOne({
-        name: reg.name,
-        competition: reg.competition,
-        isDeleted: { $ne: true },
-      });
-      if (dup)
-        return res.status(400).json({
-          message:
-            "Ya existe un competidor con ese nombre en esta competición.",
-        });
-
-      // Mismo retry loop que en competitorRoutes
       let newCompetitor;
-      for (let attempt = 0; attempt <= 4; attempt++) {
-        const last = await Competitor.findOne({ competition: reg.competition })
-          .sort({ competitorNumber: -1 })
-          .lean();
-        const nextNumber = (last?.competitorNumber ?? 0) + 1;
-        try {
-          newCompetitor = await new Competitor({
-            competitorNumber: nextNumber,
-            name: reg.name,
-            wcaId: reg.wcaId || "",
-            age: reg.age,
-            birthDate: reg.birthDate,
-            locality: reg.locality || "",
-            competition: reg.competition,
-            events: reg.events,
-          }).save();
-          break;
-        } catch (e) {
-          if (e.code === 11000 && e.keyPattern?.competitorNumber) {
-            if (attempt === 4)
-              throw new Error("Conflicto de número tras 5 intentos.");
-            continue;
-          }
-          throw e;
-        }
-      }
+      let registrationResult;
+      let statusError = null;
 
-      reg.status = "approved";
-      reg.approvedAt = new Date();
-      reg.approvedBy = req.user?.username || "Desconocido";
-      await reg.save();
+      await session.withTransaction(async () => {
+        const claimed = await Registration.findOneAndUpdate(
+          { _id: reg._id, status: { $ne: "approved" } },
+          {
+            status: "approved",
+            approvedAt: new Date(),
+            approvedBy: req.user?.username || "Desconocido",
+          },
+          { new: true, session },
+        );
+        if (!claimed) {
+          statusError = new Error("Ya aprobada.");
+          return;
+        }
+
+        const comp = await Competition.findOne({
+          _id: reg.competition,
+          isDeleted: { $ne: true },
+        }).session(session);
+        if (!comp) {
+          statusError = new Error("Competición no encontrada.");
+          return;
+        }
+
+        const currentCount = await Competitor.countDocuments({
+          competition: reg.competition,
+          isDeleted: { $ne: true },
+        }).session(session);
+        if (currentCount >= comp.competitorLimit) {
+          statusError = new Error(`Aforo completo (${comp.competitorLimit}).`);
+          return;
+        }
+
+        const dup = await Competitor.findOne({
+          name: reg.name,
+          competition: reg.competition,
+          isDeleted: { $ne: true },
+        }).session(session);
+        if (dup) {
+          statusError = new Error(
+            "Ya existe un competidor con ese nombre en esta competición.",
+          );
+          return;
+        }
+
+        let createdCompetitor;
+        for (let attempt = 0; attempt <= 4; attempt++) {
+          const last = await Competitor.findOne({ competition: reg.competition })
+            .sort({ competitorNumber: -1 })
+            .lean()
+            .session(session);
+          const nextNumber = (last?.competitorNumber ?? 0) + 1;
+          try {
+            createdCompetitor = await new Competitor({
+              competitorNumber: nextNumber,
+              name: reg.name,
+              wcaId: reg.wcaId || "",
+              age: reg.age,
+              birthDate: reg.birthDate,
+              locality: reg.locality || "",
+              competition: reg.competition,
+              events: reg.events,
+            }).save({ session });
+            break;
+          } catch (e) {
+            if (e.code === 11000 && e.keyPattern?.competitorNumber) {
+              if (attempt === 4) throw new Error("Conflicto de número tras 5 intentos.");
+              continue;
+            }
+            throw e;
+          }
+        }
+
+        if (!createdCompetitor) {
+          throw new Error("No se pudo crear el competidor.");
+        }
+
+        reg.status = "approved";
+        reg.approvedAt = new Date();
+        reg.approvedBy = req.user?.username || "Desconocido";
+        registrationResult = await reg.save({ session });
+        newCompetitor = createdCompetitor;
+      });
+
+      if (statusError) {
+        return res.status(400).json({ message: statusError.message });
+      }
 
       req.app.get("socketio")?.emit("competidor_actualizado", {
         competitionId: reg.competition.toString(),
       });
-      res.json({ registration: reg, competitor: newCompetitor });
+      res.json({ registration: registrationResult || reg, competitor: newCompetitor });
     } catch (err) {
       res.status(500).json({ message: err.message });
+    } finally {
+      session.endSession();
     }
   },
 );
@@ -243,7 +302,7 @@ router.patch(
   async (req, res) => {
     try {
       const reg = await Registration.findByIdAndUpdate(
-        req.params.id,
+        { _id: req.params.id, status: { $ne: "approved" } },
         {
           status: "rejected",
           rejectedAt: new Date(),
@@ -252,7 +311,15 @@ router.patch(
         },
         { new: true },
       );
-      if (!reg) return res.status(404).json({ message: "No encontrada." });
+      if (!reg) {
+        const exists = await Registration.exists({ _id: req.params.id });
+        return exists
+          ? res.status(400).json({
+              message:
+                "Inscripción ya aprobada; elimina primero al competidor.",
+            })
+          : res.status(404).json({ message: "No encontrada." });
+      }
       res.json(reg);
     } catch (err) {
       res.status(500).json({ message: err.message });
@@ -267,7 +334,8 @@ router.delete(
   auth(["SuperAdmin"]),
   async (req, res) => {
     try {
-      await Registration.findByIdAndDelete(req.params.id);
+      const deleted = await Registration.findByIdAndDelete(req.params.id);
+      if (!deleted) return res.status(404).json({ message: "No encontrada." });
       res.json({ message: "Eliminada." });
     } catch (err) {
       res.status(500).json({ message: err.message });

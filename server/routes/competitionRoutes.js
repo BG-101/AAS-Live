@@ -24,9 +24,11 @@ router.get("/", async (req, res) => {
   try {
     const competitions = await Competition.find({
       isDeleted: { $ne: true }, // Excluye las que están en la papelera
-    }).sort({
-      startDate: -1, // Ordena por fecha de inicio, más recientes primero
-    });
+    })
+      .select("-webhookSecret")
+      .sort({
+        startDate: -1, // Ordena por fecha de inicio, más recientes primero
+      });
     res.json(competitions);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -61,7 +63,10 @@ router.get("/by-wca/:wcaId", async (req, res) => {
       isDeleted: { $ne: true },
     });
 
-    res.json({ ...competition.toObject(), competitorCount });
+    const publicCompetition = competition.toObject();
+    delete publicCompetition.webhookSecret;
+
+    res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -86,7 +91,10 @@ router.get("/:id", validateObjectId(), async (req, res) => {
       isDeleted: { $ne: true },
     });
 
-    res.json({ ...competition.toObject(), competitorCount });
+    const publicCompetition = competition.toObject();
+    delete publicCompetition.webhookSecret;
+
+    res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

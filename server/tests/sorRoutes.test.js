@@ -79,9 +79,9 @@ describe("GET /api/sor/:compId", () => {
     expect(res.body.rankings[0].name).toBe("Peque");
   });
 
-  test("ID con formato inválido -> 500 (documenta que esta ruta no tiene validateObjectId)", async () => {
+  test("ID con formato inválido -> 400", async () => {
     const res = await request(app).get("/api/sor/no-es-un-id");
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
   });
 });
 

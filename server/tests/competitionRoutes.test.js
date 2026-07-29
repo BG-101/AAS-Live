@@ -199,6 +199,14 @@ describe("GET /api/competitions", () => {
     expect(ids).toContain(visible._id.toString());
     expect(ids).not.toContain(deleted._id.toString());
   });
+
+  test("no expone webhookSecret en respuestas públicas", async () => {
+    const comp = await makeCompetition({ webhookSecret: "supersecret" });
+
+    const res = await request(app).get(`/api/competitions/${comp._id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.webhookSecret).toBeUndefined();
+  });
 });
 
 describe("GET /api/competitions/by-wca/:wcaId", () => {

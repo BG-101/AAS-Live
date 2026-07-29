@@ -186,9 +186,19 @@ export default function RegistrationPanel({
               <p className="text-xs font-bold text-gray-500 mb-1">URL</p>
               <div
                 className="bg-white border rounded p-2 text-[11px] font-mono break-all text-gray-700 select-all cursor-copy"
-                onClick={() => {
-                  navigator.clipboard.writeText(webhookUrl);
-                  toast("URL copiada", "info");
+                onClick={async () => {
+                  try {
+                    if (!navigator.clipboard?.writeText) {
+                      throw new Error("clipboard-unavailable");
+                    }
+                    await navigator.clipboard.writeText(webhookUrl);
+                    toast("URL copiada", "info");
+                  } catch {
+                    toast(
+                      "No se pudo copiar; selecciona y copia a mano",
+                      "error",
+                    );
+                  }
                 }}
               >
                 {webhookUrl}
@@ -202,9 +212,19 @@ export default function RegistrationPanel({
                 </p>
                 <div
                   className="bg-yellow-50 border border-yellow-300 rounded p-2 text-[11px] font-mono break-all text-yellow-900 select-all cursor-copy"
-                  onClick={() => {
-                    navigator.clipboard.writeText(newSecret);
-                    toast("Secreto copiado", "info");
+                  onClick={async () => {
+                    try {
+                      if (!navigator.clipboard?.writeText) {
+                        throw new Error("clipboard-unavailable");
+                      }
+                      await navigator.clipboard.writeText(newSecret);
+                      toast("Secreto copiado", "info");
+                    } catch {
+                      toast(
+                        "No se pudo copiar; selecciona y copia a mano",
+                        "error",
+                      );
+                    }
                   }}
                 >
                   {newSecret}
@@ -470,7 +490,7 @@ export default function RegistrationPanel({
       {showManual && (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6 text-gray-800">
-            <h3 className="text-xl font-bold mb-4">Inscricpión Manual</h3>
+            <h3 className="text-xl font-bold mb-4">Inscripción Manual</h3>
             <form onSubmit={handleManualSubmit} className="space-y-3">
               <input
                 type="text"
@@ -486,7 +506,6 @@ export default function RegistrationPanel({
                 <input
                   type="text"
                   placeholder="WCA ID"
-                  required
                   className="flex-1 p-2 border rounded text-sm uppercase font-mono"
                   value={manualForm.wcaId}
                   onChange={(e) =>
@@ -495,7 +514,6 @@ export default function RegistrationPanel({
                 />
                 <input
                   type="date"
-                  required
                   className="w-40 p-2 border rounded text-sm"
                   value={manualForm.birthDate}
                   onChange={(e) =>
@@ -506,7 +524,6 @@ export default function RegistrationPanel({
               <input
                 type="text"
                 placeholder="Localidad"
-                required
                 className="w-full p-2 border rounded text-sm"
                 value={manualForm.locality}
                 onChange={(e) =>
@@ -516,7 +533,6 @@ export default function RegistrationPanel({
               <input
                 type="email"
                 placeholder="Email"
-                required
                 className="w-full p-2 border rounded text-sm"
                 value={manualForm.email}
                 onChange={(e) =>
@@ -529,7 +545,7 @@ export default function RegistrationPanel({
                   {competitionEvents.map((ev) => (
                     <label
                       key={ev}
-                      className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer font-bold transition ${
+                      className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer font-bold transition focus-within:ring-2 focus-within:ring-almeria-orange ${
                         manualForm.events.includes(ev)
                           ? "bg-almeria-orange text-white border-almeria-orange"
                           : "bg-white text-gray-500 border-gray-300"
@@ -537,7 +553,7 @@ export default function RegistrationPanel({
                     >
                       <input
                         type="checkbox"
-                        className="hidden"
+                        className="sr-only"
                         checked={manualForm.events.includes(ev)}
                         onChange={(e) => {
                           const evs = e.target.checked

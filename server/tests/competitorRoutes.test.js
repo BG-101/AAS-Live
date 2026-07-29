@@ -38,6 +38,23 @@ const makeCompetition = (overrides = {}) =>
     ...overrides,
   });
 
+describe("GET /api/competitors/:compId - respuestas públicas", () => {
+  test("no expone birthDate en la lista pública", async () => {
+    const comp = await makeCompetition();
+    await Competitor.create({
+      competitorNumber: 1,
+      name: "Ana",
+      competition: comp._id,
+      events: ["3x3"],
+      birthDate: "2010-01-01",
+    });
+
+    const res = await request(app).get(`/api/competitors/${comp._id}`);
+    expect(res.status).toBe(200);
+    expect(res.body[0].birthDate).toBeUndefined();
+  });
+});
+
 describe("POST /api/competitors - autenticación", () => {
   test("sin cookie -> 401", async () => {
     const res = await request(app).post("/api/competitors").send({});

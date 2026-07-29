@@ -161,7 +161,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
           round: roundNum,
         }).session(session);
 
-        const isNew = !existing;
+        let isNew = !existing;
         let oldTimes = existing ? existing.times : null;
 
         if (existing) {
@@ -196,6 +196,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
               round: roundNum,
             }).session(session);
             if (!existing) throw err;
+            isNew = false;
             oldTimes = existing.times;
             existing.times = times;
             existing.best = best;

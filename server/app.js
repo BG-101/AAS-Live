@@ -42,13 +42,28 @@ const createApp = () => {
     message: { message: "Demasiadas peticiones. Espera un momento." },
   });
 
+  const mutatingOnly = (limiter) => (req, res, next) =>
+    ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
+      ? limiter(req, res, next)
+      : next();
+
   app.use("/api/auth", authRoutes);
-  app.use("/api/competitions", writeLimiter, competitionRoutes);
-  app.use("/api/competitors", writeLimiter, competitorRoutes);
-  app.use("/api/results", writeLimiter, resultRoutes);
+  app.use("/api/competitions", mutatingOnly(writeLimiter), competitionRoutes);
+  app.use("/api/competitors", mutatingOnly(writeLimiter), competitorRoutes);
+  app.use("/api/results", mutatingOnly(writeLimiter), resultRoutes);
   app.use("/api/audit", auditRoutes);
   app.use("/api/sor", sorRoutes);
-  app.use("/api/registrations", writeLimiter, registrationRoutes);
+  app.use("/api/registrations", mutatingOnly(writeLimiter), registrationRoutes);
+
+  app.use((err, req, res, next) => {
+    if (err.type === "entity.parse.failed") {
+      return res
+        .status(400)
+        .json({ message: "JSON inválido en el cuerpo de la petición." });
+    }
+    console.error(err);
+    res.status(500).json({ message: "Error interno del servidor." });
+  });
 
   return app;
 };

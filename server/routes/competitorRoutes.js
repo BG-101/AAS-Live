@@ -14,6 +14,13 @@ const validateObjectId = require("../middleware/validateObjectId");
 
 const { processAdvancements } = require("../utils/wcaLogic");
 
+const sanitizeCompetitorPayload = (competitor) => {
+  if (!competitor) return competitor;
+  const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
+  delete plain.birthDate;
+  return plain;
+};
+
 // ============================================================
 // GET /api/competitors/:compId
 // Devuelve todos los competidores activos de una competición.
@@ -24,8 +31,8 @@ router.get("/:compId", validateObjectId("compId"), async (req, res) => {
     const competitors = await Competitor.find({
       competition: req.params.compId,
       isDeleted: { $ne: true }, // Excluye los competidores borrados
-    });
-    res.json(competitors);
+    }).lean();
+    res.json(competitors.map(sanitizeCompetitorPayload));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -57,8 +64,8 @@ router.get(
           competition: compId,
           events: event, // MongoDB busca dentro del array de eventos
           isDeleted: { $ne: true },
-        });
-        return res.json(competitors);
+        }).lean();
+        return res.json(competitors.map(sanitizeCompetitorPayload));
       }
 
       // --- Ronda > 1: buscar quién avanzó de la ronda anterior ---
@@ -105,7 +112,7 @@ router.get(
       // Extrae solo los competidores que avanzan
       const eligibleCompetitors = processedResults
         .filter((r) => r.advances)
-        .map((r) => r.competitor);
+        .map((r) => sanitizeCompetitorPayload(r.competitor));
 
       res.json(eligibleCompetitors);
     } catch (err) {
@@ -436,7 +443,7 @@ router.put(
           events: events || comp.events,
         },
         { new: true },
-      );
+      ).select("+birthDate");
 
       // Notifica a los clientes para que recarguen la lista de competidores
       const io = req.app.get("socketio");
