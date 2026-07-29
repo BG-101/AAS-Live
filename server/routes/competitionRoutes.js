@@ -11,6 +11,8 @@ const Competitor = require("../models/Competitor");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const Result = require("../models/Result");
+const mongoose = require("mongoose");
+const { getCompetitionOrFail } = require("../utils/dbHelpers");
 
 // ============================================================
 // GET /api/competitions
@@ -22,10 +24,49 @@ router.get("/", async (req, res) => {
   try {
     const competitions = await Competition.find({
       isDeleted: { $ne: true }, // Excluye las que están en la papelera
-    }).sort({
-      startDate: -1, // Ordena por fecha de inicio, más recientes primero
-    });
+    })
+      .select("-webhookSecret")
+      .sort({
+        startDate: -1, // Ordena por fecha de inicio, más recientes primero
+      });
     res.json(competitions);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ============================================================
+// GET /api/competitions/by-wca/:wcaId
+// Resuelve una competición por su ID WCA (URL amigable).
+// Soporta también el _id de Mongo como fallback, para no romper
+// enlaces antiguos ya compartidos.
+// ============================================================
+router.get("/by-wca/:wcaId", async (req, res) => {
+  try {
+    const { wcaId } = req.params;
+
+    let competition = await Competition.findOne({
+      wcaId,
+      isDeleted: { $ne: true },
+    });
+    if (!competition && mongoose.Types.ObjectId.isValid(wcaId)) {
+      competition = await Competition.findOne({
+        _id: wcaId,
+        isDeleted: { $ne: true },
+      });
+    }
+    if (!competition)
+      return res.status(404).json({ message: "No encontrada." });
+
+    const competitorCount = await Competitor.countDocuments({
+      competition: competition._id,
+      isDeleted: { $ne: true },
+    });
+
+    const publicCompetition = competition.toObject();
+    delete publicCompetition.webhookSecret;
+
+    res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -50,7 +91,10 @@ router.get("/:id", validateObjectId(), async (req, res) => {
       isDeleted: { $ne: true },
     });
 
-    res.json({ ...competition.toObject(), competitorCount });
+    const publicCompetition = competition.toObject();
+    delete publicCompetition.webhookSecret;
+
+    res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -75,7 +119,26 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     sorEnabled,
     scoringSystem,
     ageGroupsEnabled,
+    ageGroups,
   } = req.body;
+
+  if (!Array.isArray(events) || events.length === 0)
+    return res
+      .status(400)
+      .json({ message: "Debes incluir al menos 1 evento." });
+  if (!Array.isArray(rounds) || rounds.length === 0)
+    return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
+  if (
+    competitorLimit !== undefined &&
+    (isNaN(competitorLimit) || Number(competitorLimit) <= 0)
+  )
+    return res
+      .status(400)
+      .json({ message: "competitorLimit debe ser un número positivo." });
+  if (new Date(startDate) > new Date(endDate))
+    return res
+      .status(400)
+      .json({ message: "startDate no puede ser posterior a endDate." });
 
   // Construye el documento de la competición
   const competition = new Competition({
@@ -91,6 +154,7 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     sorEnabled: sorEnabled ?? false,
     scoringSystem: scoringSystem || "sor",
     ageGroupsEnabled: ageGroupsEnabled ?? false,
+    ageGroups: Array.isArray(ageGroups) ? ageGroups : [],
   });
 
   try {
@@ -118,7 +182,8 @@ router.post(
   async (req, res) => {
     const { event, currentRoundNumber } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca la ronda actual en la configuración
       const currentRound = comp.rounds.find(
@@ -190,7 +255,8 @@ router.put(
       cutoff,
     } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca el índice de la ronda en el array
       const roundIndex = comp.rounds.findIndex(
@@ -233,7 +299,8 @@ router.put(
   async (req, res) => {
     const { event, roundNumber, status } = req.body;
     try {
-      const comp = await Competition.findById(req.params.id);
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
 
       // Busca la ronda y actualiza su estado
       const roundIndex = comp.rounds.findIndex(
@@ -294,6 +361,9 @@ router.delete(
   async (req, res) => {
     const { event, fromRound } = req.body;
     try {
+      const comp = await getCompetitionOrFail(req.params.id, res);
+      if (!comp) return;
+
       await Result.deleteMany({
         competition: req.params.id,
         event,

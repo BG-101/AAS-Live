@@ -19,11 +19,12 @@ import { API_URL } from "../utils/api";
 
 function Projector() {
   // Parámetros de la URL: /projector/:id/:event/:round
-  const { id, event, round } = useParams();
+  const { wcaId, event, round } = useParams();
   const roundNum = Number(round);
 
   // --- Estado ---
   const [competition, setCompetition] = useState(null);
+  const compId = competition?._id;
   const [results, setResults] = useState([]);
   const [competitors, setCompetitors] = useState([]); // Para calcular progreso
 
@@ -49,38 +50,41 @@ function Projector() {
   // ============================================================
   useEffect(() => {
     axios
-      .get(`${API_URL}/api/competitions/${id}`)
+      .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
       .then((res) => setCompetition(res.data))
       .catch(console.error);
-  }, [id, refreshTrigger]);
+  }, [wcaId, refreshTrigger]);
 
   // ============================================================
   // EFECTO: Cargar resultados de la ronda
   // ============================================================
   useEffect(() => {
+    if (!compId) return;
     setResults([]);
     axios
-      .get(`${API_URL}/api/results/${id}/${event}/${roundNum}`)
+      .get(`${API_URL}/api/results/${compId}/${event}/${roundNum}`)
       .then((res) => setResults(res.data))
       .catch((err) => console.error(err));
-  }, [id, event, roundNum, refreshTrigger]);
+  }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================
   // EFECTO: Cargar competidores elegibles (para el contador de progreso)
   // ============================================================
   useEffect(() => {
+    if (!compId) return;
     setCompetitors([]);
     axios
-      .get(`${API_URL}/api/competitors/${id}/eligible/${event}/${roundNum}`)
+      .get(`${API_URL}/api/competitors/${compId}/eligible/${event}/${roundNum}`)
       .then((res) => setCompetitors(res.data))
       .catch(console.error);
-  }, [id, event, roundNum, refreshTrigger]);
+  }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================
   // EFECTO: Conexión WebSocket para actualización en tiempo real
   // Escucha cambios de resultados y configuración de la competición.
   // ============================================================
   useEffect(() => {
+    if (!compId) return;
     const socket = createSocket();
 
     socket.on("connect", () => setIsConnected(true));
@@ -88,7 +92,7 @@ function Projector() {
 
     socket.on("resultado_actualizado", (data) => {
       if (
-        data.competitionId === id &&
+        data.competitionId === compId &&
         data.event === eventRef.current &&
         data.round === roundNum
       ) {
@@ -96,8 +100,8 @@ function Projector() {
       }
     });
 
-    socket.on("competicion_actualizada", (compId) => {
-      if (compId === id) setRefreshTrigger((prev) => prev + 1);
+    socket.on("competicion_actualizada", (updatedCompId) => {
+      if (updatedCompId === compId) setRefreshTrigger((prev) => prev + 1);
     });
 
     socket.on("proyector_logout", async () => {
@@ -111,7 +115,7 @@ function Projector() {
     });
 
     return () => socket.disconnect();
-  }, [id]);
+  }, [compId]);
 
   // ============================================================
   // EFECTO: Temporizador del modo podio

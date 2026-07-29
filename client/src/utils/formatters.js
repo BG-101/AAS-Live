@@ -217,3 +217,27 @@ export const formatDateRange = (startDate, endDate, legacyDate) => {
   // Si es un solo día, muestra solo la fecha; si no, muestra el rango
   return s === e ? s : `${s} - ${e}`;
 };
+
+/**
+ * Calcula la edad de una persona en una fecha de referencia dada.
+ */
+export const getAgeAtDate = (birthDate, referenceDate) => {
+  if (!birthDate || !referenceDate) return null;
+  const birth = new Date(birthDate);
+  const ref = new Date(referenceDate);
+  let age = ref.getFullYear() - birth.getFullYear();
+  const hasHadBirthdayThisYear =
+    ref.getMonth() > birth.getMonth() ||
+    (ref.getMonth() === birth.getMonth() && ref.getDate() >= birth.getDate());
+  if (!hasHadBirthdayThisYear) age--;
+  return age;
+};
+
+/**
+ * Resuelve la edad "efectiva" de un competidor/inscripción: usa birthDate
+ * si existe, si no cae al campo age legacy.
+ */
+export const resolveCompetitorAge = (person, referenceDate) => {
+  if (person?.birthDate) return getAgeAtDate(person.birthDate, referenceDate);
+  return person?.age ?? null;
+};

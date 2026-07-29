@@ -1,3 +1,8 @@
+// ============================================================
+// MIDDLEWARE: validateObjectId
+// Procesa peticiones antes de llegar a las rutas correspondientes.
+// ============================================================
+
 const mongoose = require("mongoose");
 
 /**

@@ -181,7 +181,10 @@ export default function CompetitionList({ competitions, user, onDeleteComp }) {
         className="relative group bg-gray-800 rounded border border-gray-700 hover:border-almeria-orange transition shadow-md"
       >
         {/* Toda la tarjeta es un enlace a los detalles de la competición */}
-        <Link to={`/competition/${comp._id}`} className="block p-4">
+        <Link
+          to={`/competition/${encodeURIComponent(comp.wcaId)}`}
+          className="block p-4"
+        >
           <div className="flex justify-between items-start">
             <h3 className="text-xl font-bold text-almeria-orange">
               {comp.name}

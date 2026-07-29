@@ -13,6 +13,17 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
 const { processAdvancements } = require("../utils/wcaLogic");
+const {
+  getCompetitionOrFail,
+  getCompetitorOrFail,
+} = require("../utils/dbHelpers");
+
+const sanitizeCompetitorPayload = (competitor) => {
+  if (!competitor) return competitor;
+  const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
+  delete plain.birthDate;
+  return plain;
+};
 
 // ============================================================
 // GET /api/competitors/:compId
@@ -24,8 +35,8 @@ router.get("/:compId", validateObjectId("compId"), async (req, res) => {
     const competitors = await Competitor.find({
       competition: req.params.compId,
       isDeleted: { $ne: true }, // Excluye los competidores borrados
-    });
-    res.json(competitors);
+    }).lean();
+    res.json(competitors.map(sanitizeCompetitorPayload));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -57,13 +68,14 @@ router.get(
           competition: compId,
           events: event, // MongoDB busca dentro del array de eventos
           isDeleted: { $ne: true },
-        });
-        return res.json(competitors);
+        }).lean();
+        return res.json(competitors.map(sanitizeCompetitorPayload));
       }
 
       // --- Ronda > 1: buscar quién avanzó de la ronda anterior ---
       const prevRoundNum = currentRoundNum - 1;
-      const comp = await Competition.findById(compId);
+      const comp = await getCompetitionOrFail(compId, res);
+      if (!comp) return;
 
       // Obtiene la configuración de avance de la ronda anterior
       const prevRound = comp.rounds.find(
@@ -105,7 +117,7 @@ router.get(
       // Extrae solo los competidores que avanzan
       const eligibleCompetitors = processedResults
         .filter((r) => r.advances)
-        .map((r) => r.competitor);
+        .map((r) => sanitizeCompetitorPayload(r.competitor));
 
       res.json(eligibleCompetitors);
     } catch (err) {
@@ -128,7 +140,8 @@ router.get(
 router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
   try {
     const compId = req.body.competitionId;
-    const comp = await Competition.findById(req.body.competitionId);
+    const comp = await getCompetitionOrFail(req.body.competitionId, res);
+    if (!comp) return;
 
     // Comprueba que no se haya alcanzado el límite de competidores
     const currentCount = await Competitor.countDocuments({
@@ -155,6 +168,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     }
 
     let newCompetitor;
+    let createdSuccessfully = false;
     for (let attempt = 0; attempt <= 4; attempt++) {
       const last = await Competitor.findOne({ competition: compId })
         .sort({ competitorNumber: -1 })
@@ -167,10 +181,12 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
           name: req.body.name.trim(),
           wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
           age: req.body.age || null,
+          birthDate: req.body.birthDate || null,
           locality: req.body.locality ? req.body.locality.trim() : "",
           competition: compId,
           events: req.body.events,
         }).save();
+        createdSuccessfully = true;
         break;
       } catch (saveErr) {
         if (saveErr.code === 11000 && saveErr.keyPattern?.competitorNumber) {
@@ -193,6 +209,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     // ============================================================
     if (comp.series && comp.series.trim() !== "") {
       try {
+        let mirroredCreated = false;
         const seriesComps = await Competition.find({
           series: comp.series,
           _id: { $ne: compId },
@@ -201,6 +218,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
 
         for (const seriesComp of seriesComps) {
           try {
+            let mirroredCreatedThisComp = false;
             // No duplicar si ya existe (activo) en esa competición
             const alreadyExists = await Competitor.findOne({
               name: req.body.name.trim(),
@@ -234,16 +252,13 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
                   name: req.body.name.trim(),
                   wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
                   age: req.body.age || null,
+                  birthDate: req.body.birthDate || null,
                   locality: req.body.locality ? req.body.locality.trim() : "",
                   competition: seriesComp._id,
                   events: req.body.events,
                 });
                 await mirrored.save();
-                const io = req.app.get("socketio");
-                if (io)
-                  io.emit("competidor_actualizado", {
-                    competitionId: seriesComp._id.toString(),
-                  });
+                mirroredCreatedThisComp = true;
                 break;
               } catch (innerErr) {
                 if (
@@ -262,12 +277,13 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
               }
             }
 
-            // Notifica a los clientes de esa competición de la serio
-            const io = req.app.get("socketio");
-            if (io) {
-              io.emit("competidor_actualizado", {
-                competitionId: seriesComp._id.toString(),
-              });
+            if (mirroredCreatedThisComp) {
+              const io = req.app.get("socketio");
+              if (io) {
+                io.emit("competidor_actualizado", {
+                  competitionId: seriesComp._id.toString(),
+                });
+              }
             }
           } catch (innerErr) {
             console.error(
@@ -282,6 +298,11 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
           seriesErr.message,
         );
       }
+    }
+
+    const io = req.app.get("socketio");
+    if (io && createdSuccessfully) {
+      io.emit("competidor_actualizado", { competitionId: compId });
     }
 
     res.status(201).json(newCompetitor);
@@ -311,9 +332,8 @@ router.delete(
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
-      const comp = await Competitor.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competidor no encontrado" });
+      const comp = await getCompetitorOrFail(req.params.id, null, res);
+      if (!comp) return;
 
       // Renombra con timestamp para evitar conflicto con el índice único name+competition
       // Así se puede volver a inscribir a alguien con el mismo nombre
@@ -323,6 +343,12 @@ router.delete(
         isDeleted: true,
         name: deletedName,
       });
+
+      const io = req.app.get("socketio");
+      if (io)
+        io.emit("competidor_actualizado", {
+          competitionId: comp.competition.toString(),
+        });
 
       res.json({ message: "Competidor movido a la papelera" });
     } catch (err) {
@@ -387,9 +413,9 @@ router.put(
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
-      const { name, wcaId, age, locality, events } = req.body;
+      const { name, wcaId, age, birthDate, locality, events } = req.body;
 
-      const comp = await Competitor.findById(req.params.id);
+      const comp = await getCompetitorOrFail(req.params.id, null, res);
       if (!comp || comp.isDeleted)
         return res.status(404).json({ message: "Competidor no encontrado" });
 
@@ -413,11 +439,17 @@ router.put(
           name: name ? name.trim() : comp.name,
           wcaId: wcaId !== undefined ? wcaId.trim() : comp.wcaId,
           age: age !== undefined ? (age === "" ? null : Number(age)) : comp.age,
+          birthDate:
+            birthDate !== undefined
+              ? birthDate === ""
+                ? null
+                : birthDate
+              : comp.birthDate,
           locality: locality !== undefined ? locality.trim() : comp.locality,
           events: events || comp.events,
         },
         { new: true },
-      );
+      ).select("+birthDate");
 
       // Notifica a los clientes para que recarguen la lista de competidores
       const io = req.app.get("socketio");
@@ -446,7 +478,7 @@ router.patch(
   async (req, res) => {
     try {
       const { event, fromRound, withdrawn } = req.body;
-      const comp = await Competitor.findById(req.params.id);
+      const comp = await getCompetitorOrFail(req.params.id, null, res);
       if (!comp || comp.isDeleted)
         return res.status(404).json({ message: "Competidor no encontrado." });
 

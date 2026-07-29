@@ -38,7 +38,9 @@ export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
             {/* Cabecera de la tabla (sticky para que se mantenga visible al hacer scroll) */}
             <thead className="bg-almeria-dark text-white sticky top-0">
               <tr>
+                <th className="p-3">Fecha</th>
                 <th className="p-3">Hora Local</th>
+                <th className="p-3">Usuario</th>
                 <th className="p-3">Acción</th>
                 <th className="p-3">Competidor</th>
                 <th className="p-3">Evento</th>
@@ -51,6 +53,9 @@ export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
               {/* Renderiza cada registro de auditoría como una fila */}
               {auditLogs.map((log) => (
                 <tr key={log._id} className="hover:bg-gray-200 transition">
+                  <td className="p-3 font-mono text-xs">
+                    {new Date(log.timestamp).toLocaleDateString("es-ES")}
+                  </td>
                   {/* Hora local del cambio */}
                   <td className="p-3 font-mono text-xs">
                     {new Date(log.timestamp).toLocaleTimeString("es-ES", {
@@ -58,6 +63,10 @@ export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
                       minute: "2-digit",
                       second: "2-digit",
                     })}
+                  </td>
+
+                  <td className="p-3 font-semibold text-blue-700">
+                    {log.user || "-"}
                   </td>
 
                   {/* Tipo de acción con emoji indicativo */}
@@ -90,7 +99,7 @@ export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
               {/* Mensaje cuando no hay registros */}
               {auditLogs.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="p-6 text-center text-gray-500">
+                  <td colSpan="8" className="p-6 text-center text-gray-500">
                     No hay registros.
                   </td>
                 </tr>
