@@ -2,7 +2,7 @@
 
 **Software oficial de gestión de torneos de la Asociación Almeriense de Speedcubing.**
 
-AAS Live es una aplicación web full-stack diseñada para gestionar competiciones de speedcubing en tiempo real: desde la inscripción de competidores hasta la generación de rankings, pasando por la gestión de rondas, clasificaciones por grupos de edad y sistemas de puntuación por ligas.
+AAS Live es una aplicación web full-stack diseñada para gestionar competiciones de speedcubing en tiempo real: desde la inscripción de competidores hasta la generación de rankings, pasando por la gestión de rondas, clasificaciones por grupos de edad, sistemas de puntuación por ligas y, en la versión v1.1.0, un flujo completo de inscripciones con aprobación y rechazo.
 
 ---
 
@@ -24,6 +24,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 ## Características
 
 - 🏆 **Gestión completa de competiciones** con soporte multidía, límite de aforo y agrupación en series/ligas.
+- 📝 **Gestión de inscripciones** con webhook para formularios externos, alta manual por organizador, estados pendient/approved/rejected y aprobación automática de competidores.
 - ⚡ **Resultados en tiempo real** mediante WebSockets: los tiempos introducidos por un delegado aparecen al instante en todas las pantallas conectadas sin peticiones GET adicionales.
 - 🔢 **Lógica WCA oficial**: cálculo de Ao5, Mo3 y Bo3; desempates por single; soporte para DNF y DNS; cutoffs configurables por ronda; formato heredado automáticamente en rondas sucesivas.
 - 🔄 **Sistema multironda**: avance por porcentaje o top fijo, calculado de forma independiente por grupo de edad si la competición lo requiere.
@@ -64,6 +65,7 @@ aas-live/
 │   │   ├── authRoutes.js         # Login, logout, registro, setup, cierre de proyectores
 │   │   ├── competitionRoutes.js  # CRUD de competiciones y gestión de rondas
 │   │   ├── competitorRoutes.js   # CRUD de competidores y elegibles por ronda
+│   │   ├── registrationRoutes.js # Gestión de inscripciones, webhooks y aprobaciones
 │   │   ├── resultRoutes.js       # Guardado y consulta de tiempos
 │   │   ├── auditRoutes.js        # Consulta del log de auditoría
 │   │   └── sorRoutes.js          # Cálculo de SOR individual y de serie
@@ -85,6 +87,7 @@ aas-live/
         │   ├── TimeEntryForm.jsx         # Formulario de entrada de tiempos
         │   ├── SORTable.jsx              # Tabla de clasificación SOR
         │   ├── CompetitorEditorModal.jsx # Editor inline de competidores (SuperAdmin)
+        │   ├── RegistrationPanel.jsx     # Gestión de inscripciones y webhooks
         │   ├── AuditModal.jsx            # Historial de cambios de tiempos
         │   ├── RoundSettingsModal.jsx    # Configuración de formato y avance por ronda
         │   ├── LoginModal.jsx            # Modal de inicio de sesión
@@ -220,6 +223,16 @@ Los usuarios sin sesión iniciada pueden ver la lista de competiciones y los res
 
 Las competiciones pueden agruparse en **series** (ligas). Los competidores inscritos en una competición de una serie se inscriben automáticamente en todas las demás competiciones de la misma, respetando el límite de aforo de cada una.
 
+### Gestión de inscripciones (v1.1.0)
+
+El sistema incorpora un flujo completo de inscripción para prepararse antes de la competición:
+
+- **Webhook seguro** para recibir solicitudes desde Google Forms o formularios externos.
+- **Alta manual** desde el panel de organización para incorporar participantes sin formulario.
+- **Estados de inscripción**: pendiente, aprobada o rechazada, con historial de acciones.
+- **Aprobación automática** que crea el competidor asociado y respeta el aforo configurado.
+- **Rechazo con motivo opcional** para gestionar casos especiales de forma ordenada.
+
 ### Gestión de rondas
 
 Cada evento de una competición tiene una o varias rondas configurables con:
@@ -299,6 +312,13 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 | DELETE | `/api/competitors/:id`                            | Admin/Delegado | Soft delete de un competidor                     |
 | DELETE | `/api/competitors/empty-trash/:compId`            | SuperAdmin     | Vacía la papelera de una competición             |
 | PATCH  | `/api/competitors/:id/withdraw`                   | Admin/Delegado | Marca o desmarca una retirada de ronda           |
+| GET    | `/api/registrations/:compId`                      | Admin/Delegado | Lista las inscripciones de una competición       |
+| POST   | `/api/registrations/webhook/:compId`              | —              | Recibe inscripciones desde un formulario externo |
+| POST   | `/api/registrations/manual/:compId`               | Admin/Delegado | Crea una inscripción manualmente                 |
+| POST   | `/api/registrations/:compId/generate-secret`      | SuperAdmin     | Genera o regenera el secreto del webhook         |
+| PATCH  | `/api/registrations/:id/approve`                  | Admin/Delegado | Aprueba una inscripción y crea el competidor     |
+| PATCH  | `/api/registrations/:id/reject`                   | Admin/Delegado | Rechaza una inscripción con motivo opcional     |
+| DELETE | `/api/registrations/:id`                          | SuperAdmin     | Elimina físicamente una inscripción              |
 | GET    | `/api/results/:compId/:event/:round`              | —              | Resultados de una ronda                          |
 | POST   | `/api/results`                                    | Admin/Delegado | Guarda los tiempos de un competidor              |
 | GET    | `/api/audit/:compId`                              | Admin/Delegado | Log de auditoría de una competición              |
