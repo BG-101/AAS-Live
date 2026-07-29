@@ -338,6 +338,24 @@ describe("PATCH /api/registrations/:id/reject", () => {
     expect(res.body.rejectedBy).toBe("delegado5");
     expect(res.body.notes).toBe("No pagó");
   });
+
+  test("inscripción ya aprobada -> 400", async () => {
+    await createUser("delegado5b", "clave12345", "Delegado");
+    const cookie = await loginAs(app, "delegado5b", "clave12345");
+    const comp = await makeCompetition();
+    const reg = await Registration.create({
+      competition: comp._id,
+      name: "Ana",
+      status: "approved",
+    });
+
+    const res = await request(app)
+      .patch(`/api/registrations/${reg._id}/reject`)
+      .set("Cookie", cookie);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/aprobada/i);
+  });
 });
 
 describe("DELETE /api/registrations/:id", () => {

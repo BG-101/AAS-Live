@@ -14,6 +14,13 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 
+const normalizeAge = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (Array.isArray(value) && value.length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 // GET /api/registrations/:compId - lista (admins)
 router.get(
   "/:compId",
@@ -23,7 +30,8 @@ router.get(
     try {
       const filter = { competition: req.params.compId };
       const ALLOWED = ["pending", "approved", "rejected"];
-      const status = typeof req.query.status === "string" ? req.query.status : null;
+      const status =
+        typeof req.query.status === "string" ? req.query.status : null;
       if (status) {
         if (!ALLOWED.includes(status))
           return res.status(400).json({ message: "Estado inválido." });
@@ -69,7 +77,7 @@ router.post(
       if (!name?.trim())
         return res.status(400).json({ message: "Nombre requerido." });
 
-      const parsedAge = Number(age);
+      const parsedAge = normalizeAge(age);
       const responseId =
         typeof formResponseId === "string" && formResponseId.trim()
           ? formResponseId.trim()
@@ -80,7 +88,7 @@ router.post(
           competition: req.params.compId,
           name: name.trim(),
           wcaId: wcaId?.trim() || "",
-          age: Number.isFinite(parsedAge) ? parsedAge : null,
+          age: parsedAge,
           birthDate: birthDate || null,
           locality: locality?.trim() || "",
           email: email?.trim() || "",
@@ -134,8 +142,7 @@ router.post(
             "Ya existe una inscripción pendiente/aprobada con ese nombre.",
         });
 
-      const parsedAge = Number(age);
-      const normalizedAge = Number.isFinite(parsedAge) ? parsedAge : null;
+      const normalizedAge = normalizeAge(age);
       const reg = await Registration.create({
         competition: req.params.compId,
         name: name.trim(),
@@ -192,61 +199,55 @@ router.patch(
 
       let newCompetitor;
       let registrationResult;
-      let statusError = null;
+      const businessError = (msg) =>
+        Object.assign(new Error(msg), { status: 400 });
 
-      await session.withTransaction(async () => {
-        const claimed = await Registration.findOneAndUpdate(
-          { _id: reg._id, status: { $ne: "approved" } },
-          {
-            status: "approved",
-            approvedAt: new Date(),
-            approvedBy: req.user?.username || "Desconocido",
-          },
-          { new: true, session },
-        );
-        if (!claimed) {
-          statusError = new Error("Ya aprobada.");
-          return;
-        }
-
-        const comp = await Competition.findOne({
-          _id: reg.competition,
-          isDeleted: { $ne: true },
-        }).session(session);
-        if (!comp) {
-          statusError = new Error("Competición no encontrada.");
-          return;
-        }
-
-        const currentCount = await Competitor.countDocuments({
+      let createdCompetitor;
+      let lastError;
+      for (let attempt = 0; attempt <= 4; attempt++) {
+        const nextNumber = await Competitor.findOne({
           competition: reg.competition,
-          isDeleted: { $ne: true },
-        }).session(session);
-        if (currentCount >= comp.competitorLimit) {
-          statusError = new Error(`Aforo completo (${comp.competitorLimit}).`);
-          return;
-        }
+        })
+          .sort({ competitorNumber: -1 })
+          .lean()
+          .then((last) => (last?.competitorNumber ?? 0) + 1);
 
-        const dup = await Competitor.findOne({
-          name: reg.name,
-          competition: reg.competition,
-          isDeleted: { $ne: true },
-        }).session(session);
-        if (dup) {
-          statusError = new Error(
-            "Ya existe un competidor con ese nombre en esta competición.",
-          );
-          return;
-        }
+        try {
+          await session.withTransaction(async () => {
+            const claimed = await Registration.findOneAndUpdate(
+              { _id: reg._id, status: { $ne: "approved" } },
+              {
+                status: "approved",
+                approvedAt: new Date(),
+                approvedBy: req.user?.username || "Desconocido",
+              },
+              { new: true, session },
+            );
+            if (!claimed) throw businessError("Ya aprobada.");
 
-        let createdCompetitor;
-        for (let attempt = 0; attempt <= 4; attempt++) {
-          const last = await Competitor.findOne({ competition: reg.competition })
-            .sort({ competitorNumber: -1 })
-            .lean()
-            .session(session);
-          const nextNumber = (last?.competitorNumber ?? 0) + 1;
-          try {
+            const comp = await Competition.findOne({
+              _id: reg.competition,
+              isDeleted: { $ne: true },
+            }).session(session);
+            if (!comp) throw businessError("Competición no encontrada.");
+
+            const currentCount = await Competitor.countDocuments({
+              competition: reg.competition,
+              isDeleted: { $ne: true },
+            }).session(session);
+            if (currentCount >= comp.competitorLimit)
+              throw businessError(`Aforo completo (${comp.competitorLimit}).`);
+
+            const dup = await Competitor.findOne({
+              name: reg.name,
+              competition: reg.competition,
+              isDeleted: { $ne: true },
+            }).session(session);
+            if (dup)
+              throw businessError(
+                "Ya existe un competidor con ese nombre en esta competición.",
+              );
+
             createdCompetitor = await new Competitor({
               competitorNumber: nextNumber,
               name: reg.name,
@@ -257,37 +258,36 @@ router.patch(
               competition: reg.competition,
               events: reg.events,
             }).save({ session });
-            break;
-          } catch (e) {
-            if (e.code === 11000 && e.keyPattern?.competitorNumber) {
-              if (attempt === 4) throw new Error("Conflicto de número tras 5 intentos.");
-              continue;
+
+            registrationResult = claimed;
+            newCompetitor = createdCompetitor;
+          });
+          break;
+        } catch (err) {
+          lastError = err;
+          if (err.code === 11000 && err.keyPattern?.competitorNumber) {
+            if (attempt === 4) {
+              throw new Error("Conflicto de número tras 5 intentos.");
             }
-            throw e;
+            continue;
           }
+          throw err;
         }
+      }
 
-        if (!createdCompetitor) {
-          throw new Error("No se pudo crear el competidor.");
-        }
-
-        reg.status = "approved";
-        reg.approvedAt = new Date();
-        reg.approvedBy = req.user?.username || "Desconocido";
-        registrationResult = await reg.save({ session });
-        newCompetitor = createdCompetitor;
-      });
-
-      if (statusError) {
-        return res.status(400).json({ message: statusError.message });
+      if (!newCompetitor) {
+        throw lastError || new Error("No se pudo crear el competidor.");
       }
 
       req.app.get("socketio")?.emit("competidor_actualizado", {
         competitionId: reg.competition.toString(),
       });
-      res.json({ registration: registrationResult || reg, competitor: newCompetitor });
+      res.json({
+        registration: registrationResult || reg,
+        competitor: newCompetitor,
+      });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      res.status(err.status === 400 ? 400 : 500).json({ message: err.message });
     } finally {
       session.endSession();
     }
@@ -301,7 +301,7 @@ router.patch(
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
-      const reg = await Registration.findByIdAndUpdate(
+      const reg = await Registration.findOneAndUpdate(
         { _id: req.params.id, status: { $ne: "approved" } },
         {
           status: "rejected",

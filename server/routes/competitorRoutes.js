@@ -218,6 +218,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
 
         for (const seriesComp of seriesComps) {
           try {
+            let mirroredCreatedThisComp = false;
             // No duplicar si ya existe (activo) en esa competición
             const alreadyExists = await Competitor.findOne({
               name: req.body.name.trim(),
@@ -257,7 +258,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
                   events: req.body.events,
                 });
                 await mirrored.save();
-                mirroredCreated = true;
+                mirroredCreatedThisComp = true;
                 break;
               } catch (innerErr) {
                 if (
@@ -276,7 +277,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
               }
             }
 
-            if (mirroredCreated) {
+            if (mirroredCreatedThisComp) {
               const io = req.app.get("socketio");
               if (io) {
                 io.emit("competidor_actualizado", {
