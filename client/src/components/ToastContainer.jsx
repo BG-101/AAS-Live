@@ -1,3 +1,8 @@
+// ============================================================
+// COMPONENTE: ToastContainer
+// Renderiza la interfaz y la l?gica de este componente.
+// ============================================================
+
 import { useState, useEffect } from "react";
 import { registerToastSetter } from "../utils/toast";
 

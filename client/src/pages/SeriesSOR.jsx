@@ -10,13 +10,6 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { createSocket } from "../utils/socket";
 
-const AGE_GROUP_KEYS = ["alevin", "infantil", "absoluta"];
-const AGE_GROUP_LABELS = {
-  alevin: "Alevín (<=10)",
-  infantil: "Infantil (11-15)",
-  absoluta: "Absoluta (>=16)",
-};
-
 function SeriesSOR() {
   const { seriesName } = useParams();
   const [data, setData] = useState(null);
@@ -24,17 +17,28 @@ function SeriesSOR() {
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [ageGroupsList, setAgeGroupsList] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     setLoading(true);
     setData(null);
+    setError(null);
     const url = `${API_URL}/api/sor/series/${encodeURIComponent(seriesName)}${
       activeGroup ? `?ageGroup=${activeGroup}` : ""
     }`;
     axios
       .get(url)
-      .then((res) => setData(res.data))
-      .catch(console.error)
+      .then((res) => {
+        setData(res.data);
+        if (res.data.ageGroups) setAgeGroupsList(res.data.ageGroups);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(
+          err.response?.data?.message || "Error al cargar el SOR de la serie.",
+        );
+      })
       .finally(() => setLoading(false));
   }, [seriesName, activeGroup, refreshTrigger]);
 
@@ -58,7 +62,21 @@ function SeriesSOR() {
       </div>
     );
 
-  const { rankings, competitions, ageGroupsEnabled } = data;
+  if (error || !data)
+    return (
+      <div className="min-h-screen bg-almeria-dark text-white flex flex-col items-center justify-center text-center px-8 py-4">
+        <p className="text-4xl">⚠️</p>
+        <p className="text-xl font-bold">
+          {error || "No se pudo cargar el SOR de la serie."}
+        </p>
+        <Link to="/" className="text-almeria-orange hover:underline">
+          ← Volver al inicio
+        </Link>
+      </div>
+    );
+
+  const { rankings, competitions, ageGroupsEnabled, ageGroupsHomogeneus } =
+    data;
 
   return (
     <div className="min-h-screen bg-almeria-dark text-almeria-light p-8">
@@ -82,32 +100,43 @@ function SeriesSOR() {
           </p>
         </div>
 
-        {/* Pestañas de grupos de edad */}
-        {ageGroupsEnabled && (
-          <div className="flex gap-2 mb-6 flex-wrap">
-            <button
-              onClick={() => setActiveGroup(null)}
-              className={`px-4 py-2 rounded font-bold text-sm transition ${
-                !activeGroup
-                  ? "bg-almeria-orange text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              General
-            </button>
-            {AGE_GROUP_KEYS.map((key) => (
+        {/* Pestañas de grupos de edad (solo si todas las competiciones tienen la misma config) */}
+        {ageGroupsEnabled &&
+          ageGroupsHomogeneus &&
+          ageGroupsList.length > 0 && (
+            <div className="flex gap-2 mb-6 flex-wrap">
               <button
-                key={key}
-                onClick={() => setActiveGroup(key)}
+                onClick={() => setActiveGroup(null)}
                 className={`px-4 py-2 rounded font-bold text-sm transition ${
-                  activeGroup === key
+                  !activeGroup
                     ? "bg-almeria-orange text-white"
                     : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                 }`}
               >
-                {AGE_GROUP_LABELS[key]}
+                General
               </button>
-            ))}
+              {ageGroupsList.map((group) => (
+                <button
+                  key={group._id}
+                  onClick={() => setActiveGroup(group._id)}
+                  className={`px-4 py-2 rounded font-bold text-sm transition ${
+                    activeGroup === group._id
+                      ? "bg-almeria-orange text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+        {ageGroupsEnabled && !ageGroupsHomogeneus && (
+          <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-bold px-4 py-3 rounded mb-6">
+            ⚠️ Las competiciones de esta serie usan grupos de edad distintos
+            entre sí (o no todas los tienen activados). No es posible mostrar
+            una clasificación fiable por categoría; se muestra el ranking
+            general combinado.
           </div>
         )}
 

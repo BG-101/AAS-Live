@@ -20,14 +20,14 @@ function App() {
         <Route path="/" element={<Home />} />
 
         {/* Detalle de una competición: gestión de competidores, tiempos y resultados */}
-        <Route path="/competition/:id" element={<CompetitionDetails />} />
+        <Route path="/competition/:wcaId" element={<CompetitionDetails />} />
 
         {/* Vista de proyector: pantalla de resultados en vivo para mostrar en un monitor */}
-        <Route path="/projector/:id/:event/:round" element={<Projector />} />
+        <Route path="/projector/:wcaId/:event/:round" element={<Projector />} />
 
         <Route path="/series/:seriesName/sor" element={<SeriesSOR />} />
 
-        <Route path="*" element={<NotFound />} /> 
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );

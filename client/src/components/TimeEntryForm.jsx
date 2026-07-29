@@ -81,9 +81,7 @@ export default function TimeEntryForm({
 
   return (
     <div className="bg-gray-800 p-6 rounded shadow border border-gray-700">
-      <h2 className="font-bold text-almeria-orange mb-4">
-        2. Ingresar Tiempos
-      </h2>
+      <h2 className="font-bold text-almeria-orange mb-4">Ingresar Tiempos</h2>
 
       <form onSubmit={handleSubmitTimes}>
         {/* ========== BUSCADOR DE COMPETIDORES ========== */}

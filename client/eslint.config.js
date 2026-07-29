@@ -1,3 +1,8 @@
+// ============================================================
+// CONFIGURACI?N: eslint.config
+// Define la configuraci?n de herramientas y compilaci?n del proyecto.
+// ============================================================
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

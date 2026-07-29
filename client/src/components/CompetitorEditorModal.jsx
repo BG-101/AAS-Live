@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
+import { getAgeAtDate } from "../utils/formatters";
 
 /**
  * @param {boolean} show - Si es true, muestra el modal
@@ -21,6 +22,7 @@ export default function CompetitorEditorModal({
   onClose,
   competitionId,
   competitionEvents,
+  competitionStartDate,
   onSaved,
 }) {
   const [competitors, setCompetitors] = useState([]);
@@ -46,7 +48,9 @@ export default function CompetitorEditorModal({
           initial[c._id] = {
             name: c.name,
             wcaId: c.wcaId || "",
-            age: c.age ?? "",
+            birthDate: c.birthDate
+              ? new Date(c.birthDate).toISOString().slice(0, 10)
+              : "",
             locality: c.locality || "",
             events: [...(c.events || [])],
           };
@@ -95,16 +99,26 @@ export default function CompetitorEditorModal({
     }
   };
 
+  const arraysEqualAsSets = (a = [], b = []) => {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((val, i) => val === sortedB[i]);
+  };
+
   // Comprueba si una fila tiene cambios respecto al estado original
   const isDirty = (competitor) => {
     const edit = editStates[competitor._id];
     if (!edit) return false;
+    const originalBirthDate = competitor.birthDate
+      ? new Date(competitor.birthDate).toISOString().slice(0, 10)
+      : "";
     return (
       edit.name !== competitor.name ||
       edit.wcaId !== (competitor.wcaId || "") ||
-      edit.age !== (competitor.age ?? "") ||
+      edit.birthDate !== originalBirthDate ||
       edit.locality !== (competitor.locality || "") ||
-      JSON.stringify(edit.events) !== JSON.stringify(competitor.events || [])
+      !arraysEqualAsSets(edit.events, competitor.events || [])
     );
   };
 
@@ -142,7 +156,7 @@ export default function CompetitorEditorModal({
                   <th className="p-3 w-12 text-center">#</th>
                   <th className="p-3 min-w-[160px]">Nombre</th>
                   <th className="p-3 w-32">WCA ID</th>
-                  <th className="p-3 w-20">Edad</th>
+                  <th className="p-3 w-36">Fecha Nac.</th>
                   <th className="p-3 min-w-[140px]">Localidad</th>
                   <th className="p-3 min-w-[120px]">Eventos</th>
                   <th className="p-3 w-24 text-center">Guardar</th>
@@ -194,14 +208,24 @@ export default function CompetitorEditorModal({
                       {/* Edad */}
                       <td className="p-3">
                         <input
-                          type="number"
-                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
-                          value={edit.age}
+                          type="date"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white outline-none focus:border-almeria-orange"
+                          value={edit.birthDate}
                           onChange={(e) =>
-                            updateField(competitor._id, "age", e.target.value)
+                            updateField(
+                              competitor._id,
+                              "birthDate",
+                              e.target.value,
+                            )
                           }
                           placeholder="-"
                         />
+                        {edit.birthDate && competitionStartDate && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {getAgeAtDate(edit.birthDate, competitionStartDate)}{" "}
+                            años en la competición
+                          </p>
+                        )}
                       </td>
 
                       {/* Localidad */}

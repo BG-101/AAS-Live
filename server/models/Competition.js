@@ -56,6 +56,9 @@ const competitionSchema = new mongoose.Schema({
     },
   ],
 
+  // Secreto para autenticar peticiones del webhook de Google Forms
+  webhookSecret: { type: String, default: "", select: false },
+
   // Soft delete: si es true, la competición está "en la papelera" y no se muestra
   isDeleted: { type: Boolean, default: false },
 
@@ -67,6 +70,16 @@ const competitionSchema = new mongoose.Schema({
 
   // Activa la separación de resultados por grupos de edad
   ageGroupsEnabled: { type: Boolean, default: false },
+
+  // Grupos de edad personalizados. Si ageGroupsEnabled=true y este array
+  // está vacío, se usan los 3 grupos por defecto (Alevín/Infantil/Absoluta)
+  ageGroups: [
+    {
+      label: { type: String, required: true },
+      minAge: { type: Number, default: null },
+      maxAge: { type: Number, default: null },
+    },
+  ],
 
   // Sistema de puntuación: "sor" (clásico, menor = mejor) o "f1" (mayor = mejor)
   scoringSystem: { type: String, enum: ["sor", "f1"], default: "sor" },

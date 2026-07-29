@@ -28,6 +28,9 @@ const auditLogSchema = new mongoose.Schema({
   // Tipo de acción realizada: "NUEVO" (primer registro) o "MODIFICADO" (edición)
   action: { type: String, required: true },
 
+  // Usuario que realizó el cambio (username del JWT)
+  user: { type: String, default: "Desconocido" },
+
   // Tiempos anteriores (vacío si la acción es "NUEVO")
   oldTimes: [{ type: Number }],
 

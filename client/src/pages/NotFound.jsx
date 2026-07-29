@@ -1,3 +1,8 @@
+// ============================================================
+// P?GINA: NotFound
+// Define la vista principal de esta p?gina del cliente.
+// ============================================================
+
 import { Link } from "react-router-dom";
 
 export default function NotFound() {

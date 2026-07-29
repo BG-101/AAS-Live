@@ -17,8 +17,14 @@ const competitorSchema = new mongoose.Schema({
   // ID oficial de la WCA (ej: "2020GARC01"). Vacío si no tiene.
   wcaId: { type: String, default: "" },
 
-  // Edad del competidor (opcional)
+  // Edad legacy (competidores antiguos sin fecha de nacimiento registrada).
+  // Se mantiene por competibilidad; los nuevos registros usan birthDate
   age: { type: Number, default: null },
+
+  // Fecha de nacimiento. Preferido sobre "age": permite calcular la edad
+  // real en la fecha de inicio de cada competición en la que participe.
+  // Se excluye de las respuestas públicas por defecto.
+  birthDate: { type: Date, default: null, select: false },
 
   // Ciudad o localidad de origen
   locality: { type: String, default: "" },

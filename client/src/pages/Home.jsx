@@ -73,6 +73,27 @@ function Home() {
   // Contador que se incrementa para forzar la recarga de competiciones
   const [refreshCompetitions, setRefreshCompetitions] = useState(0);
 
+  const [useCustomAgeGroups, setUseCustomAgeGroups] = useState(false);
+  const [customAgeGroups, setCustomAgeGroups] = useState([
+    { label: "", minAge: "", maxAge: "" },
+  ]);
+
+  const addCustomAgeGroup = () =>
+    setCustomAgeGroups((prev) => [
+      ...prev,
+      { label: "", minAge: "", maxAge: "" },
+    ]);
+
+  const removeCustomAgeGroup = (index) =>
+    setCustomAgeGroups((prev) => prev.filter((_, i) => i !== index));
+
+  const updateCustomAgeGroup = (index, filed, value) =>
+    setCustomAgeGroups((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [filed]: value };
+      return copy;
+    });
+
   const isWritableAdmin =
     user?.role === "SuperAdmin" || user?.role === "Delegado";
 
@@ -307,12 +328,37 @@ function Home() {
       });
     });
 
+    const ageGroupsPayload =
+      formData.ageGroupsEnabled && useCustomAgeGroups
+        ? customAgeGroups
+            .filter((g) => g.label.trim() !== "")
+            .map((g) => ({
+              label: g.label.trim(),
+              minAge: g.minAge === "" ? null : parseInt(g.minAge),
+              maxAge: g.maxAge === "" ? null : parseInt(g.maxAge),
+            }))
+        : [];
+
+    if (formData.ageGroupsEnabled && useCustomAgeGroups) {
+      if (ageGroupsPayload.length === 0)
+        return alert("Añade al menos un grupo de edad con nombre.");
+      const invalid = ageGroupsPayload.find(
+        (g) =>
+          (g.minAge === null && g.maxAge === null) ||
+          (g.minAge !== null && g.maxAge !== null && g.maxAge < g.minAge),
+      );
+      if (invalid)
+        return alert(
+          `El grupo "${invalid.label}" necesita una edad mínima y/o máxima válida.`,
+        );
+    }
+
     try {
       await axios.post(`${API_URL}/api/competitions`, {
         ...formData,
         events: selectedEventsKeys,
         rounds: roundsPayload,
-        // sorEnabled y ageGroupsEnabled ya vienen dentro de formData con el spread
+        ageGroups: ageGroupsPayload,
       });
 
       // Limpia el formulario y recarga las competiciones
@@ -330,6 +376,8 @@ function Home() {
         scoringSystem: "sor",
       });
       setEventConfigs({});
+      setCustomAgeGroups([{ label: "", minAge: "", maxAge: "" }]);
+      setUseCustomAgeGroups(false);
     } catch (error) {
       alert("Error: " + error.response?.data?.message);
     }
@@ -619,6 +667,98 @@ function Home() {
                         Infantil / Absoluta)
                       </span>
                     </label>
+
+                    {formData.ageGroupsEnabled && (
+                      <div className="ml-4 flex flex-col gap-2 border-l-2 border-blue-200 pl-3">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
+                          <input
+                            type="radio"
+                            name="ageGroupMode"
+                            checked={!useCustomAgeGroups}
+                            onChange={() => setUseCustomAgeGroups(false)}
+                          />
+                          <span>
+                            {
+                              "Usar grupos de edad por defecto (Alevín <= 10 / Infantil 11-15 / Absoluta >= 16)"
+                            }
+                          </span>
+                        </label>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer text-gray-700">
+                          <input
+                            type="radio"
+                            name="ageGroupMode"
+                            checked={useCustomAgeGroups}
+                            onChange={() => setUseCustomAgeGroups(true)}
+                          />
+                          <span>Personalizar mis propios grupos</span>
+                        </label>
+
+                        {useCustomAgeGroups && (
+                          <div className="flex flex-col gap-2 mt-1">
+                            {customAgeGroups.map((group, idx) => (
+                              <div
+                                key={idx}
+                                className="grid grid-cols-8 gap-1 items-center bg-white p-2 rounded border"
+                              >
+                                <input
+                                  type="text"
+                                  placeholder="Nombre (ej: Cadete)"
+                                  className="col-span-4 p-1 border rounded text-xs"
+                                  value={group.label}
+                                  onChange={(e) =>
+                                    updateCustomAgeGroup(
+                                      idx,
+                                      "label",
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Edad mín."
+                                  className="col-span-2 p-1 border rounded text-xs"
+                                  value={group.minAge}
+                                  onChange={(e) =>
+                                    updateCustomAgeGroup(
+                                      idx,
+                                      "minAge",
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Edad máx."
+                                  className="col-span-2 p-1 border rounded text-xs"
+                                  value={group.maxAge}
+                                  onChange={(e) =>
+                                    updateCustomAgeGroup(
+                                      idx,
+                                      "maxAge",
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeCustomAgeGroup(idx)}
+                                  className="col-span-8 text-[10px] text-red-500 hover:text-red-700 text-right"
+                                >
+                                  🗑️ Quitar grupo
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={addCustomAgeGroup}
+                              className="text-xs bg-gray-200 py-1 rounded font-bold hover:bg-gray-300"
+                            >
+                              + Añadir grupo de edad
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Configuración de rondas para cada evento seleccionado */}

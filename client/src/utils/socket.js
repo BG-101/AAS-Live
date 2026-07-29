@@ -1,3 +1,8 @@
+// ============================================================
+// UTILIDAD: socket
+// Centraliza l?gica reutilizable para esta parte de la aplicaci?n.
+// ============================================================
+
 import { io } from "socket.io-client";
 import { API_URL } from "./api";
 
