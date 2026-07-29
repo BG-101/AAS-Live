@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: wcaLogic.stats.test
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const { calculateStats, sortResultsWCA } = require("../utils/wcaLogic");
 
 describe("calculateAo5", () => {

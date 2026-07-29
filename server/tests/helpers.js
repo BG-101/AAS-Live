@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: helpers
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const bcrypt = require("bcryptjs");
 const request = require("supertest");
 const User = require("../models/User");

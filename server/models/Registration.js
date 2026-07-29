@@ -1,3 +1,8 @@
+// ============================================================
+// MODELO: Registration
+// Define la estructura de datos y la persistencia de este recurso.
+// ============================================================
+
 const mongoose = require("mongoose");
 
 const registrationSchema = new mongoose.Schema({

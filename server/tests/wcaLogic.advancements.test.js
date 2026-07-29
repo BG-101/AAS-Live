@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: wcaLogic.advancements.test
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const { connect, closeDatabase, clearDatabase } = require("./testDb");
 const Competition = require("../models/Competition");
 const Competitor = require("../models/Competitor");

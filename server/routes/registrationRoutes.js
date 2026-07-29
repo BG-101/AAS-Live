@@ -1,3 +1,8 @@
+// ============================================================
+// RUTAS: registrationRoutes
+// Expone los endpoints HTTP relacionados con este recurso.
+// ============================================================
+
 const express = require("express");
 const crypto = require("crypto");
 const router = express.Router();

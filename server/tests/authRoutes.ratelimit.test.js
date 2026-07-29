@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: authRoutes.ratelimit.test
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const request = require("supertest");
 const { connect, closeDatabase, clearDatabase } = require("./testDb");
 const createApp = require("../app");

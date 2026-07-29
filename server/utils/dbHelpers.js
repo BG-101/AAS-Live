@@ -1,3 +1,8 @@
+// ============================================================
+// UTILIDAD: dbHelpers
+// Centraliza l?gica reutilizable para esta parte de la aplicaci?n.
+// ============================================================
+
 const Competition = require("../models/Competition");
 const Competitor = require("../models/Competitor");
 

@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: authRoutes.test
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const request = require("supertest");
 const bcrypt = require("bcryptjs");
 const { connect, closeDatabase, clearDatabase } = require("./testDb");

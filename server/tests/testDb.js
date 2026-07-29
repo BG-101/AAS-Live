@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: testDb
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const mongoose = require("mongoose");
 const { MongoMemoryReplSet } = require("mongodb-memory-server");
 

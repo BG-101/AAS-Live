@@ -1,3 +1,8 @@
+// ============================================================
+// PRUEBAS: wcaLogic.agegroups.test
+// Comprueba el comportamiento esperado de esta funcionalidad.
+// ============================================================
+
 const {
   DEFAULT_AGE_GROUPS,
   resolveAgeGroups,

@@ -1,3 +1,8 @@
+// ============================================================
+// COMPONENTE: RegistrationPanel
+// Renderiza la interfaz y la l?gica de este componente.
+// ============================================================
+
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
