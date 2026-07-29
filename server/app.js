@@ -33,12 +33,12 @@ const createApp = () => {
 
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins, credentials: true }));
-  app.use(express.json({ limit: "10kb" }));
+  app.use(express.json({ limit: process.env.BODY_LIMIT || "10kb" }));
   app.use(cookieParser());
 
   const writeLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 100,
+    windowMs: Number(process.env.RATE_LIMIT_WRITE_WINDOW_MS) || 60 * 1000,
+    max: Number(process.env.RATE_LIMIT_WRITE_MAX) || 100,
     message: { message: "Demasiadas peticiones. Espera un momento." },
   });
 

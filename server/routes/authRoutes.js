@@ -15,8 +15,8 @@ const auth = require("../middleware/auth");
 // Rate limiter: máximo 10 intentos de login cada 15 minutos por IP
 // Protege contra ataques de fuerza bruta
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // Ventana de 15 minutos
-  max: 10, // Máximo 10 intentos
+  windowMs: Number(process.env.RATE_LIMIT_LOGIN_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_LOGIN_MAX) || 10,
   message: {
     message:
       "Demasiados intentos de inicio de sesión. Ha sido bloqueado por 15 minutos.",
@@ -64,7 +64,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: "48h" },
+      { expiresIn: process.env.JWT_EXPIRES_IN || "48h" },
     );
 
     // Envía el JWT como cookie httpOnly (no accesible desde JavaScript del cliente)
@@ -73,7 +73,7 @@ router.post("/login", loginLimiter, async (req, res) => {
       httpOnly: true, // No accesible desde JS del navegador
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Protección contra CSRF
-      maxAge: 48 * 60 * 60 * 1000, // Expira en 48 horas (en ms)
+      maxAge: Number(process.env.COOKIE_MAX_AGE_MS) || 48 * 60 * 60 * 1000,
     });
 
     // También devuelve los datos del usuario en el body del response
@@ -131,18 +131,20 @@ router.post("/setup", async (req, res) => {
 
     // Hashea la contraseña por defecto con bcrypt (salt de 10 rondas)
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash("admin123", salt);
+    const defaultUsername = process.env.DEFAULT_ADMIN_USERNAME || "admin";
+    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || "admin123";
+    const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
     // Crea el usuario SuperAdmin
     const newAdmin = new User({
-      username: "admin",
+      username: defaultUsername,
       password: hashedPassword,
       role: "SuperAdmin",
     });
 
     await newAdmin.save();
     res.json({
-      message: "SuperAdmin creado con éxito. Usuario: admin, Clave: admin123",
+      message: `SuperAdmin creado con éxito. Usuario: ${defaultUsername}, Clave: ${defaultPassword}`,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
