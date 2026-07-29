@@ -166,6 +166,7 @@ describe("POST /api/auth/register", () => {
         role: "Delegado",
       });
     expect(res.status).toBe(400);
+    expect(res.body.message).toBe("El usuario ya existe.");
   });
 
   test("password < 8 caracteres -> 400", async () => {

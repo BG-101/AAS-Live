@@ -201,6 +201,9 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
       message: `Usuario ${cleanUsername} (${assignedRole}) creado correctamente.`,
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ message: "El usuario ya existe." });
+    }
     res.status(500).json({ message: err.message });
   }
 });

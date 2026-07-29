@@ -16,7 +16,10 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
 const { calculateStats, processAdvancements } = require("../utils/wcaLogic");
-const { getCompetitionOrFail } = require("../utils/dbHelpers");
+const {
+  getCompetitionOrFail,
+  getCompetitorOrFail,
+} = require("../utils/dbHelpers");
 
 // ============================================================
 // GET /api/results/:compId/:event/:round
@@ -115,15 +118,12 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     const comp = await getCompetitionOrFail(competitionId, res);
     if (!comp) return;
 
-    const competitorDoc = await Competitor.findOne({
-      _id: competitorId,
-      competition: competitionId,
-      isDeleted: { $ne: true },
-    });
-    if (!competitorDoc)
-      return res
-        .status(404)
-        .json({ message: "Competidor no pertenece a esta competición." });
+    const competitorDoc = await getCompetitorOrFail(
+      competitorId,
+      competitionId,
+      res,
+    );
+    if (!competitorDoc) return;
     if (!competitorDoc.events.includes(event))
       return res
         .status(400)

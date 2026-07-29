@@ -88,6 +88,26 @@ describe("POST /api/competitors - validaciones", () => {
     expect(res.status).toBe(404);
   });
 
+  test("si falla la asignación de número no emite socket de refresco", async () => {
+    const comp = await makeCompetition();
+    const existing = await Competitor.create({
+      competitorNumber: 1,
+      name: "Ana",
+      competition: comp._id,
+      events: ["3x3"],
+    });
+    await request(app)
+      .post("/api/competitors")
+      .set("Cookie", cookie)
+      .send({ competitionId: comp._id, name: "Otra", events: ["3x3"] });
+
+    const socket = app.get("socketio");
+    const emitted = socket.emit.mock.calls.filter(
+      ([eventName]) => eventName === "competidor_actualizado",
+    );
+    expect(emitted).toHaveLength(0);
+  });
+
   test("aforo completo -> 400", async () => {
     const comp = await makeCompetition({ competitorLimit: 1 });
     await Competitor.create({

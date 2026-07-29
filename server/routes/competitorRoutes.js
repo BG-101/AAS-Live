@@ -13,6 +13,10 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
 const { processAdvancements } = require("../utils/wcaLogic");
+const {
+  getCompetitionOrFail,
+  getCompetitorOrFail,
+} = require("../utils/dbHelpers");
 
 const sanitizeCompetitorPayload = (competitor) => {
   if (!competitor) return competitor;
@@ -70,7 +74,8 @@ router.get(
 
       // --- Ronda > 1: buscar quién avanzó de la ronda anterior ---
       const prevRoundNum = currentRoundNum - 1;
-      const comp = await Competition.findById(compId);
+      const comp = await getCompetitionOrFail(compId, res);
+      if (!comp) return;
 
       // Obtiene la configuración de avance de la ronda anterior
       const prevRound = comp.rounds.find(
@@ -135,9 +140,8 @@ router.get(
 router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
   try {
     const compId = req.body.competitionId;
-    const comp = await Competition.findById(req.body.competitionId);
-    if (!comp)
-      return res.status(404).json({ message: "Competición no encontrada." });
+    const comp = await getCompetitionOrFail(req.body.competitionId, res);
+    if (!comp) return;
 
     // Comprueba que no se haya alcanzado el límite de competidores
     const currentCount = await Competitor.countDocuments({
@@ -164,6 +168,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     }
 
     let newCompetitor;
+    let createdSuccessfully = false;
     for (let attempt = 0; attempt <= 4; attempt++) {
       const last = await Competitor.findOne({ competition: compId })
         .sort({ competitorNumber: -1 })
@@ -181,6 +186,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
           competition: compId,
           events: req.body.events,
         }).save();
+        createdSuccessfully = true;
         break;
       } catch (saveErr) {
         if (saveErr.code === 11000 && saveErr.keyPattern?.competitorNumber) {
@@ -203,6 +209,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     // ============================================================
     if (comp.series && comp.series.trim() !== "") {
       try {
+        let mirroredCreated = false;
         const seriesComps = await Competition.find({
           series: comp.series,
           _id: { $ne: compId },
@@ -250,11 +257,7 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
                   events: req.body.events,
                 });
                 await mirrored.save();
-                const io = req.app.get("socketio");
-                if (io)
-                  io.emit("competidor_actualizado", {
-                    competitionId: seriesComp._id.toString(),
-                  });
+                mirroredCreated = true;
                 break;
               } catch (innerErr) {
                 if (
@@ -273,12 +276,13 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
               }
             }
 
-            // Notifica a los clientes de esa competición de la serio
-            const io = req.app.get("socketio");
-            if (io) {
-              io.emit("competidor_actualizado", {
-                competitionId: seriesComp._id.toString(),
-              });
+            if (mirroredCreated) {
+              const io = req.app.get("socketio");
+              if (io) {
+                io.emit("competidor_actualizado", {
+                  competitionId: seriesComp._id.toString(),
+                });
+              }
             }
           } catch (innerErr) {
             console.error(
@@ -296,7 +300,9 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     }
 
     const io = req.app.get("socketio");
-    if (io) io.emit("competidor_actualizado", { competitionId: compId });
+    if (io && createdSuccessfully) {
+      io.emit("competidor_actualizado", { competitionId: compId });
+    }
 
     res.status(201).json(newCompetitor);
   } catch (err) {
@@ -325,9 +331,8 @@ router.delete(
   auth(["SuperAdmin", "Delegado"]),
   async (req, res) => {
     try {
-      const comp = await Competitor.findById(req.params.id);
-      if (!comp)
-        return res.status(404).json({ message: "Competidor no encontrado" });
+      const comp = await getCompetitorOrFail(req.params.id, null, res);
+      if (!comp) return;
 
       // Renombra con timestamp para evitar conflicto con el índice único name+competition
       // Así se puede volver a inscribir a alguien con el mismo nombre
@@ -409,7 +414,7 @@ router.put(
     try {
       const { name, wcaId, age, birthDate, locality, events } = req.body;
 
-      const comp = await Competitor.findById(req.params.id);
+      const comp = await getCompetitorOrFail(req.params.id, null, res);
       if (!comp || comp.isDeleted)
         return res.status(404).json({ message: "Competidor no encontrado" });
 
@@ -472,7 +477,7 @@ router.patch(
   async (req, res) => {
     try {
       const { event, fromRound, withdrawn } = req.body;
-      const comp = await Competitor.findById(req.params.id);
+      const comp = await getCompetitorOrFail(req.params.id, null, res);
       if (!comp || comp.isDeleted)
         return res.status(404).json({ message: "Competidor no encontrado." });
 
