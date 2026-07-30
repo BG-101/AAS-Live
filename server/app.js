@@ -18,7 +18,10 @@ const auditRoutes = require("./routes/auditRoutes");
 const authRoutes = require("./routes/authRoutes");
 const sorRoutes = require("./routes/sorRoutes");
 const registrationRoutes = require("./routes/registrationRoutes");
-const { parsePositiveInt } = require("./utils/parseEnvInt");
+const {
+  parsePositiveInt,
+  MAX_SAFE_TIMEOUT_MS,
+} = require("./utils/parseEnvInt");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -41,6 +44,7 @@ const createApp = () => {
     windowMs: parsePositiveInt(
       process.env.RATE_LIMIT_WRITE_WINDOW_MS,
       60 * 1000,
+      MAX_SAFE_TIMEOUT_MS,
     ),
     max: parsePositiveInt(process.env.RATE_LIMIT_WRITE_MAX, 100),
     message: { message: "Demasiadas peticiones. Espera un momento." },

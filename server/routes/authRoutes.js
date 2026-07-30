@@ -12,11 +12,15 @@ const User = require("../models/User");
 const rateLimit = require("express-rate-limit"); // Protección contra fuerza bruta
 const auth = require("../middleware/auth");
 const crypto = require("crypto");
-const { parsePositiveInt } = require("../utils/parseEnvInt");
+const {
+  parsePositiveInt,
+  MAX_SAFE_TIMEOUT_MS,
+} = require("../utils/parseEnvInt");
 
 const LOGIN_WINDOW_MS = parsePositiveInt(
   process.env.RATE_LIMIT_LOGIN_WINDOW_MS,
   15 * 60 * 1000,
+  MAX_SAFE_TIMEOUT_MS,
 );
 const LOGIN_WINDOW_MINUTES = Math.round(LOGIN_WINDOW_MS / 60000);
 
@@ -80,7 +84,10 @@ router.post("/login", loginLimiter, async (req, res) => {
       httpOnly: true, // No accesible desde JS del navegador
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Protección contra CSRF
-      maxAge: Number(process.env.COOKIE_MAX_AGE_MS) || 48 * 60 * 60 * 1000,
+      maxAge: parsePositiveInt(
+        process.env.COOKIE_MAX_AGE_MS,
+        48 * 60 * 60 * 1000,
+      ),
     });
 
     // También devuelve los datos del usuario en el body del response
@@ -153,7 +160,7 @@ router.post("/setup", async (req, res) => {
   const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
   if (
     !defaultPassword ||
-    defaultPassword < 12 ||
+    defaultPassword.length < 12 ||
     defaultPassword === "admin123"
   ) {
     return res.status(500).json({

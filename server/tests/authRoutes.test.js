@@ -229,9 +229,18 @@ describe("POST /api/auth/setup", () => {
     expect(res.status).toBe(401);
   });
 
-  test("DEFAULT_ADMIN_PASSWORD débil o ausente -> 500", async () => {
+  test("DEFAULT_ADMIN_PASSWORD = 'admin123' -> 500", async () => {
     process.env.ALLOW_SETUP = "true";
     process.env.DEFAULT_ADMIN_PASSWORD = "admin123";
+    const res = request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
+    expect(res.status).toBe(500);
+  });
+
+  test("DEFAULT_ADMIN_PASSWORD corta genérica (< 12 chars) -> 500", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_PASSWORD = "shorpass";
     const res = await request(app)
       .post("/api/auth/setup")
       .set("X-Setup-Token", VALID_TOKEN);
