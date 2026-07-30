@@ -17,12 +17,32 @@ const {
   MAX_SAFE_TIMEOUT_MS,
 } = require("../utils/parseEnvInt");
 
+const resolveJwtExpiresIn = (raw) => {
+  if (!raw) return "48h";
+  const trimmed = raw.trim();
+  // jsonwebtoken interpreta un number como segundos, y un string como ms().
+  // Un env var puramente numérico ("3600") lo tratamos como segundos,
+  // que es la interpretación intuitiva para quien configura el .env.
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : trimmed;
+};
+
+const JWT_EXPIRES_IN = resolveJwtExpiresIn(process.env.JWT_EXPIRES_IN);
+
+try {
+  jwt.sign({}, "validation-only", { expiresIn: JWT_EXPIRES_IN });
+} catch (err) {
+  console.err(
+    `❌ FATAL: JWT_EXPIRES_IN inválido ("${process.env.JWT_EXPIRES_IN}"): ${err.message}`,
+  );
+  process.exit(1);
+}
+
 const LOGIN_WINDOW_MS = parsePositiveInt(
   process.env.RATE_LIMIT_LOGIN_WINDOW_MS,
   15 * 60 * 1000,
   MAX_SAFE_TIMEOUT_MS,
 );
-const LOGIN_WINDOW_MINUTES = Math.round(LOGIN_WINDOW_MS / 60000);
+const LOGIN_WINDOW_MINUTES = Math.max(1, Math.ceil(LOGIN_WINDOW_MS / 60000));
 
 // Rate limiter: máximo 10 intentos de login cada 15 minutos por IP
 // Protege contra ataques de fuerza bruta
@@ -75,7 +95,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "48h" },
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     // Envía el JWT como cookie httpOnly (no accesible desde JavaScript del cliente)
@@ -170,7 +190,8 @@ router.post("/setup", async (req, res) => {
   }
 
   try {
-    // Comprueba si ya existe un SuperAdmin
+    // Chequeo rápido para dar un mensaje claro en el caso común (no es la
+    // garantía real de atomicidad, eso lo hace el índice único parcial)
     const existingAdmin = await User.findOne({ role: "SuperAdmin" });
     if (existingAdmin)
       return res
@@ -193,6 +214,13 @@ router.post("/setup", async (req, res) => {
       message: `SuperAdmin '${defaultUsername}' creado con éxito. Usa la contraseña definida en DEFAULT_ADMIN_PASSWORD.`,
     });
   } catch (err) {
+    // Si dos requests pasaron el check anterior a la vez, el índice único
+    // parcial rechaza el segundo save() con 11000: sigue siendo "ya inicializado".
+    if (err.code === 11000) {
+      return res
+        .status(400)
+        .json({ message: "El sistema ya está inicializado." });
+    }
     res.status(500).json({ message: err.message });
   }
 });

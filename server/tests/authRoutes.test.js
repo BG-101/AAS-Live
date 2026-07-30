@@ -200,12 +200,21 @@ describe("POST /api/auth/setup", () => {
   const ORIGINAL_ALLOW_SETUP = process.env.ALLOW_SETUP;
   const ORIGINAL_BOOTSTRAP_TOKEN = process.env.SETUP_BOOTSTRAP_TOKEN;
   const ORIGINAL_DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD;
+  const ORIGINAL_DEFAULT_USERNAME = process.env.DEFAULT_ADMIN_USERNAME;
   const VALID_TOKEN = ORIGINAL_BOOTSTRAP_TOKEN;
 
+  // process.env.KEY = undefined deja la string "undefined"; hay que borrar la key
+  // si el valor original no existía, para no filtrar config falsa a otros tests.
+  const restoreEnv = (key, value) => {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  };
+
   afterEach(() => {
-    process.env.ALLOW_SETUP = ORIGINAL_ALLOW_SETUP;
-    process.env.SETUP_BOOTSTRAP_TOKEN = ORIGINAL_BOOTSTRAP_TOKEN;
-    process.env.DEFAULT_ADMIN_PASSWORD = ORIGINAL_DEFAULT_PASSWORD;
+    restoreEnv("ALLOW_SETUP", ORIGINAL_ALLOW_SETUP);
+    restoreEnv("SETUP_BOOTSTRAP_TOKEN", ORIGINAL_BOOTSTRAP_TOKEN);
+    restoreEnv("DEFAULT_ADMIN_PASSWORD", ORIGINAL_DEFAULT_PASSWORD);
+    restoreEnv("DEFAULT_ADMIN_USERNAME", ORIGINAL_DEFAULT_USERNAME);
   });
 
   test("ALLOW_SETUP != 'true' -> 403", async () => {
@@ -249,6 +258,7 @@ describe("POST /api/auth/setup", () => {
 
   test("ALLOW_SETUP=true, token válido y sin SuperAdmin previo -> crea admin, no expone password", async () => {
     process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_USERNAME = "admin"; // Fijado explícitamente, no asumido
     const res = await request(app)
       .post("/api/auth/setup")
       .set("X-Setup-Token", VALID_TOKEN);
