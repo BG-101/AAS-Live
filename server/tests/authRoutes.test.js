@@ -198,8 +198,14 @@ describe("POST /api/auth/register", () => {
 
 describe("POST /api/auth/setup", () => {
   const ORIGINAL_ALLOW_SETUP = process.env.ALLOW_SETUP;
+  const ORIGINAL_BOOTSTRAP_TOKEN = process.env.SETUP_BOOTSTRAP_TOKEN;
+  const ORIGINAL_DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD;
+  const VALID_TOKEN = ORIGINAL_BOOTSTRAP_TOKEN;
+
   afterEach(() => {
     process.env.ALLOW_SETUP = ORIGINAL_ALLOW_SETUP;
+    process.env.SETUP_BOOTSTRAP_TOKEN = ORIGINAL_BOOTSTRAP_TOKEN;
+    process.env.DEFAULT_ADMIN_PASSWORD = ORIGINAL_DEFAULT_PASSWORD;
   });
 
   test("ALLOW_SETUP != 'true' -> 403", async () => {
@@ -208,19 +214,48 @@ describe("POST /api/auth/setup", () => {
     expect(res.status).toBe(403);
   });
 
-  test("ALLOW_SETUP=true y sin SuperAdmin previo -> crea admin/admin123", async () => {
+  test("SETUP_BOOTSTRAP_TOKEN no configurado -> 500", async () => {
     process.env.ALLOW_SETUP = "true";
+    delete process.env.SETUP_BOOTSTRAP_TOKEN;
     const res = await request(app).post("/api/auth/setup");
+    expect(res.status).toBe(500);
+  });
+
+  test("token de setup incorrecto -> 401", async () => {
+    process.env.ALLOW_SETUP = "true";
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", "token-incorrecto-que-no-coincide");
+    expect(res.status).toBe(401);
+  });
+
+  test("DEFAULT_ADMIN_PASSWORD débil o ausente -> 500", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_PASSWORD = "admin123";
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
+    expect(res.status).toBe(500);
+  });
+
+  test("ALLOW_SETUP=true, token válido y sin SuperAdmin previo -> crea admin, no expone password", async () => {
+    process.env.ALLOW_SETUP = "true";
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
     expect(res.status).toBe(200);
+    expect(res.body.message).not.toMatch(/TestStrongPass1234/);
 
     const admin = await User.findOne({ username: "admin" });
     expect(admin.role).toBe("SuperAdmin");
   });
 
-  test("ALLOW_SETUP=true pero ya existe SuperAdmin -> 400", async () => {
+  test("ALLOW_SETUP=true, token válido pero ya existe SuperAdmin -> 400", async () => {
     process.env.ALLOW_SETUP = "true";
     await createUser("yaExiste", "password123", "SuperAdmin");
-    const res = await request(app).post("/api/auth/setup");
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
     expect(res.status).toBe(400);
   });
 });
