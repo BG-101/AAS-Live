@@ -18,6 +18,7 @@ const auditRoutes = require("./routes/auditRoutes");
 const authRoutes = require("./routes/authRoutes");
 const sorRoutes = require("./routes/sorRoutes");
 const registrationRoutes = require("./routes/registrationRoutes");
+const { parsePositiveInt } = require("./utils/parseEnvInt");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -37,8 +38,11 @@ const createApp = () => {
   app.use(cookieParser());
 
   const writeLimiter = rateLimit({
-    windowMs: Number(process.env.RATE_LIMIT_WRITE_WINDOW_MS) || 60 * 1000,
-    max: Number(process.env.RATE_LIMIT_WRITE_MAX) || 100,
+    windowMs: parsePositiveInt(
+      process.env.RATE_LIMIT_WRITE_WINDOW_MS,
+      60 * 1000,
+    ),
+    max: parsePositiveInt(process.env.RATE_LIMIT_WRITE_MAX, 100),
     message: { message: "Demasiadas peticiones. Espera un momento." },
   });
 

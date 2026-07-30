@@ -11,15 +11,22 @@ const jwt = require("jsonwebtoken"); // Generación de tokens JWT
 const User = require("../models/User");
 const rateLimit = require("express-rate-limit"); // Protección contra fuerza bruta
 const auth = require("../middleware/auth");
+const crypto = require("crypto");
+const { parsePositiveInt } = require("../utils/parseEnvInt");
+
+const LOGIN_WINDOW_MS = parsePositiveInt(
+  process.env.RATE_LIMIT_LOGIN_WINDOW_MS,
+  15 * 60 * 1000,
+);
+const LOGIN_WINDOW_MINUTES = Math.round(LOGIN_WINDOW_MS / 60000);
 
 // Rate limiter: máximo 10 intentos de login cada 15 minutos por IP
 // Protege contra ataques de fuerza bruta
 const loginLimiter = rateLimit({
-  windowMs: Number(process.env.RATE_LIMIT_LOGIN_WINDOW_MS) || 15 * 60 * 1000,
-  max: Number(process.env.RATE_LIMIT_LOGIN_MAX) || 10,
+  windowMs: LOGIN_WINDOW_MS,
+  max: parsePositiveInt(process.env.RATE_LIMIT_LOGIN_MAX, 10),
   message: {
-    message:
-      "Demasiados intentos de inicio de sesión. Ha sido bloqueado por 15 minutos.",
+    message: `Demasiados intentos de inicio de sesión. Ha sido bloqueado por ${LOGIN_WINDOW_MINUTES} minutos.`,
   },
   skip: () =>
     process.env.NODE_ENV === "test" &&
@@ -121,6 +128,40 @@ router.post("/setup", async (req, res) => {
     });
   }
 
+  const bootstrapToken = process.env.SETUP_BOOTSTRAP_TOKEN;
+  if (!bootstrapToken || bootstrapToken.length < 20) {
+    return res.status(500).json({
+      message:
+        "SETUP_BOOTSTRAP_TOKEN no configurado o demasiado corto (mín. 20 caracteres).",
+    });
+  }
+  const provided = Buffer.from(
+    typeof req.headers["x-setup-token"] === "string"
+      ? req.headers["x-setup-token"]
+      : "",
+  );
+  const expected = Buffer.from(bootstrapToken);
+  if (
+    provided.length !== expected.length ||
+    !crypto.timingSafeEqual(provided, expected)
+  ) {
+    return res
+      .status(401)
+      .json({ message: "Token de inicialización inválido." });
+  }
+
+  const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+  if (
+    !defaultPassword ||
+    defaultPassword < 12 ||
+    defaultPassword === "admin123"
+  ) {
+    return res.status(500).json({
+      message:
+        "DEFAULT_ADMIN_PASSWORD no configurado o es débil (mín. 12 caracteres, no puede ser 'admin123').",
+    });
+  }
+
   try {
     // Comprueba si ya existe un SuperAdmin
     const existingAdmin = await User.findOne({ role: "SuperAdmin" });
@@ -132,19 +173,17 @@ router.post("/setup", async (req, res) => {
     // Hashea la contraseña por defecto con bcrypt (salt de 10 rondas)
     const salt = await bcrypt.genSalt(10);
     const defaultUsername = process.env.DEFAULT_ADMIN_USERNAME || "admin";
-    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || "admin123";
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
     // Crea el usuario SuperAdmin
-    const newAdmin = new User({
+    await new User({
       username: defaultUsername,
       password: hashedPassword,
       role: "SuperAdmin",
-    });
+    }).save();
 
-    await newAdmin.save();
     res.json({
-      message: `SuperAdmin creado con éxito. Usuario: ${defaultUsername}, Clave: ${defaultPassword}`,
+      message: `SuperAdmin '${defaultUsername}' creado con éxito. Usa la contraseña definida en DEFAULT_ADMIN_PASSWORD.`,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
