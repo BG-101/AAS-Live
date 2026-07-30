@@ -31,7 +31,7 @@ const JWT_EXPIRES_IN = resolveJwtExpiresIn(process.env.JWT_EXPIRES_IN);
 try {
   jwt.sign({}, "validation-only", { expiresIn: JWT_EXPIRES_IN });
 } catch (err) {
-  console.err(
+  console.error(
     `❌ FATAL: JWT_EXPIRES_IN inválido ("${process.env.JWT_EXPIRES_IN}"): ${err.message}`,
   );
   process.exit(1);
