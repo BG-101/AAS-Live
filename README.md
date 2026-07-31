@@ -73,7 +73,10 @@ aas-live/
 │   │   ├── auth.js               # Verificación JWT y control de roles
 │   │   └── validateObjectId.js   # Validación de parámetros ObjectId en rutas
 │   └── utils/
-│       └── wcaLogic.js           # Lógica WCA: stats, avances, SOR, grupos de edad
+│       ├── wcaLogic.js           # Lógica WCA: stats, avances, SOR, grupos de edad
+│       ├── parseEnvInt.js        # Parseo seguro de enteros positivos desde env vars (con cap de timers)
+│       ├── secretStrength.js     # Heurísticas de entropía para SETUP_BOOTSTRAP_TOKEN y DEFAULT_ADMIN_PASSWORD
+│       └── validateUsername.js   # Validación de formato de username (setup y registro)
 └── client/
     └── src/
         ├── pages/
@@ -165,24 +168,43 @@ NODE_ENV=development   # o "production"
 # URL del cliente (necesaria para CORS en producción)
 CLIENT_URL=https://<tu-dominio-frontend>
 
+# Duración de la sesión JWT. Acepta formato jsonwebtoken ("48h", "7d") o un
+# número puro interpretado como SEGUNDOS (ej: "3600" = 1 hora).
+# Se valida en el arranque: si es inválido, el servidor no arranca.
+JWT_EXPIRES_IN=48h
+
+# maxAge de la cookie jwtToken en milisegundos
+COOKIE_MAX_AGE_MS=172800000
+
+# Rate limiting de /api/auth/login
+RATE_LIMIT_LOGIN_WINDOW_MS=900000
+RATE_LIMIT_LOGIN_MAX=10
+
+# Rate limiting de endpoints de escritura (POST/PUT/PATCH/DELETE)
+RATE_LIMIT_WRITE_WINDOW_MS=60000
+RATE_LIMIT_WRITE_MAX=100
+
+# Límite de tamaño del body JSON
+BODY_LIMIT=10kb
+
 # Habilita el endpoint de inicialización del primer SuperAdmin
 # Déjalo sin definir o en "false" en producción
 ALLOW_SETUP=true
+
+# Token que debe enviarse en el header X-Setup-Token para poder llamar a /api/auth/setup.
+# Mínimo 20 caracteres y 8 distintos; se rechazan valores repetitivos/comunes.
+SETUP_BOOTSTRAP_TOKEN=<genera-con-el-comando-de-abajo>
+
+# Credenciales del SuperAdmin creado por /api/auth/setup
+DEFAULT_ADMIN_USERNAME=admin
+# Mínimo 12 caracteres y 6 distintos; se rechazan valores como "admin123" o repetitivos.
+DEFAULT_ADMIN_PASSWORD=<define-una-contraseña-fuerte>
 ```
 
-### Cliente — `client/.env.local` (solo desarrollo)
-
-```env
-# URL del servidor en desarrollo (por defecto http://localhost:3001)
-VITE_API_URL=http://localhost:3001
-```
-
-En producción no se necesita esta variable: tanto las peticiones REST como la conexión Socket.IO usan el origen del despliegue automáticamente.
-
-Para generar un `JWT_SECRET` seguro:
+Para generar un `JWT_SECRET` o `SETUP_BOOTSTRAP_TOKEN` con buena entropía:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ### Versionado del cliente
@@ -194,19 +216,24 @@ Para publicar una nueva versión: actualiza el campo `version` de `client/packag
 
 ## Inicialización del sistema
 
-La primera vez que arranques el servidor necesitas crear el usuario SuperAdmin:
+La primera vez que arranques el servidor necesitas crear el usuario SuperAdmin. El endpoint `/api/auth/setup` exige tres condiciones simultáneas: `ALLOW_SETUP=true`, un `SETUP_BOOTSTRAP_TOKEN` fuerte configurado en el servidor, y ese mismo token enviado en el header de la petición.
 
-1. Asegúrate de que `ALLOW_SETUP=true` está en tu `.env`.
-2. Haz una petición POST al endpoint de setup:
+1. Asegúrate de que `ALLOW_SETUP=true`, `SETUP_BOOTSTRAP_TOKEN` y `DEFAULT_ADMIN_PASSWORD` (fuertes, no valores triviales tipo `admin123` o repeticiones) están definidos en tu `.env`.
+2. Haz una petición POST al endpoint de setup incluyendo el token en el header `X-Setup-Token`:
 
 ```bash
-curl -X POST http://localhost:3001/api/auth/setup
+curl -X POST http://localhost:3001/api/auth/setup \
+    -H "X-Setup-Token: <valor-de-SETUP_BOOTSTRAP_TOKEN>"
 ```
 
-Esto crea el usuario `admin` con contraseña `admin123`.
+Esto crea el usuario `DEFAULT_ADMIN_USERNAME` (o `admin` si no se define) con la contraseña de `DEFAULT_ADMIN_PASSWORD`. La respuesta nunca incluye la contraseña en texto plano.
 
-3. **Cambia la contraseña inmediatamente** desde el panel de administración o directamente en la base de datos.
-4. Una vez inicializado, elimina `ALLOW_SETUP=true` del `.env` o cámbialo a `false`. El endpoint quedará bloqueado con 403.
+3. Una vez inicializado, elimina `ALLOW_SETUP=true` del `.env` o cámbialo a `false`. El endpoint quedará bloqueado con 403.
+
+**Notas de seguridad:**
+
+- El sistema solo permite un único `SuperAdmin`: un índice único parcial a nivel de MongoDB (`{ role: "SuperAdmin" }`) impide que dos peticiones de setup concurrentes creen administradores duplicados, incluso si ambas superan el chequeo previo en memoria.
+- Si `DEFAULT_ADMIN_USERNAME` coincide con un usuario ya existente (no-SuperAdmin), el setup falla con 500 indicando el conflicto, sin confundirlo con "sistema ya inicializado".
 
 ---
 
@@ -343,6 +370,8 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 - **Soft delete**: los competidores y competiciones borrados no se eliminan físicamente, se marcan con `isDeleted: true` y se renombran para liberar índices únicos.
 - **Integridad de numeración**: índice único compuesto `{competition, competitorNumber}` en el modelo `Competitor`, combinado con un bucle de reintentos en la inscripción, previene duplicados de número de competidor bajo carga concurrente.
 - **Auditoría**: cada modificación de tiempos queda registrada en `AuditLog` con el estado anterior y el nuevo, accesible solo para admins.
+- **Endpoint de bootstrap protegido**: `/api/auth/setup` requiere un token dedicado (`SETUP_BOOTSTRAP_TOKEN`, comparado con `crypto.timingSafeEqual`) además de `ALLOW_SETUP=true`; el token y la contraseña por defecto se validan por entropía (longitud mínima, diversidad de caracteres, denylist de valores comunes) antes de poder crear el primer SuperAdmin.
+- **Configuración externalizada**: rate limits (login y escritura), duración del JWT, `maxAge` de la cookie y límite del body JSON se leen de variables de entorno con parseo seguro (`parsePositiveInt`), evitando valores negativos, `NaN` o superiores al límite de timers de Node.
 
 ---
 
