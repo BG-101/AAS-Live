@@ -16,6 +16,8 @@ const {
   parsePositiveInt,
   MAX_SAFE_TIMEOUT_MS,
 } = require("../utils/parseEnvInt");
+const { validateSecretStrength } = require("../utils/secretStrength");
+const { isValidUsername } = require("../utils/validateUsername");
 
 const resolveJwtExpiresIn = (raw) => {
   if (!raw) return "48h";
@@ -156,12 +158,16 @@ router.post("/setup", async (req, res) => {
   }
 
   const bootstrapToken = process.env.SETUP_BOOTSTRAP_TOKEN;
-  if (!bootstrapToken || bootstrapToken.length < 20) {
-    return res.status(500).json({
-      message:
-        "SETUP_BOOTSTRAP_TOKEN no configurado o demasiado corto (mín. 20 caracteres).",
-    });
+  const tokenError = validateSecretStrength(bootstrapToken, {
+    minLength: 20,
+    minUniqueChars: 8,
+  });
+  if (tokenError) {
+    return res
+      .status(500)
+      .json({ message: `SETUP_BOOTSTRAP_TOKEN inválido: ${tokenError} ` });
   }
+
   const provided = Buffer.from(
     typeof req.headers["x-setup-token"] === "string"
       ? req.headers["x-setup-token"]
@@ -178,14 +184,24 @@ router.post("/setup", async (req, res) => {
   }
 
   const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
-  if (
-    !defaultPassword ||
-    defaultPassword.length < 12 ||
-    defaultPassword === "admin123"
-  ) {
+  const passwordError = validateSecretStrength(defaultPassword, {
+    minLength: 12,
+    minUniqueChars: 6,
+  });
+  if (passwordError) {
+    return res
+      .status(500)
+      .json({ message: `DEFAULT_ADMIN_PASSWORD inválido: ${passwordError}` });
+  }
+
+  // Trim primero: " " es truthy y saltaría el fallback "admin", quedando luego
+  // vacío tras el trim() de /login -> SuperAdmin inalcanzable.
+  const rawUsername = (process.env.DEFAULT_ADMIN_USERNAME || "").trim();
+  const defaultUsername = rawUsername || "admin";
+  if (!isValidUsername(defaultUsername)) {
     return res.status(500).json({
       message:
-        "DEFAULT_ADMIN_PASSWORD no configurado o es débil (mín. 12 caracteres, no puede ser 'admin123').",
+        "DEFAULT_ADMIN_USERNAME inválido (máx 32 caracteres, solo letras/números/._-).",
     });
   }
 
@@ -198,9 +214,17 @@ router.post("/setup", async (req, res) => {
         .status(400)
         .json({ message: "El sistema ya está inicializado." });
 
+    // Precheck: un 11000 por username (no por role) no significa "ya inicializado",
+    // significa que DEFAULT_ADMIN_USERNAME choca con un usuario ya existente.
+    const usernameToken = await User.findOne({ username: defaultUsername });
+    if (usernameToken) {
+      return res.status(500).json({
+        message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) y existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
+      });
+    }
+
     // Hashea la contraseña por defecto con bcrypt (salt de 10 rondas)
     const salt = await bcrypt.genSalt(10);
-    const defaultUsername = process.env.DEFAULT_ADMIN_USERNAME || "admin";
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
     // Crea el usuario SuperAdmin
@@ -214,12 +238,20 @@ router.post("/setup", async (req, res) => {
       message: `SuperAdmin '${defaultUsername}' creado con éxito. Usa la contraseña definida en DEFAULT_ADMIN_PASSWORD.`,
     });
   } catch (err) {
-    // Si dos requests pasaron el check anterior a la vez, el índice único
-    // parcial rechaza el segundo save() con 11000: sigue siendo "ya inicializado".
+    // Fallback de la carrera: dos requests concurrentes pueden pasar ambos
+    // prechecks antes de que cualquiera haga save(). El índice único
+    // distingue qué invariante se violó.
     if (err.code === 11000) {
-      return res
-        .status(400)
-        .json({ message: "El sistema ya está inicializado." });
+      if (err.keyPattern?.role) {
+        return res
+          .status(400)
+          .json({ message: "El sistema ya está inicializado." });
+      }
+      if (err.keyPattern?.username) {
+        return res.status(500).json({
+          message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) ya existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
+        });
+      }
     }
     res.status(500).json({ message: err.message });
   }

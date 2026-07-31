@@ -277,4 +277,53 @@ describe("POST /api/auth/setup", () => {
       .set("X-Setup-Token", VALID_TOKEN);
     expect(res.status).toBe(400);
   });
+
+  test("SETUP_BOOTSTRAP_TOKEN con baja entropía (repetido) -> 500", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.SETUP_BOOTSTRAP_TOKEN = "aaaaaaaaaaaaaaaaaaaa"; // 20 chars, cumple longitud, no entropía
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", "aaaaaaaaaaaaaaaaaaaa");
+    expect(res.status).toBe(500);
+  });
+
+  test("DEFAULT_ADMIN_PASSWORD con baja entropía (repetido) -> 500", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_PASSWORD = "aaaaaaaaaaaa"; // 12 chars, cumple longitud, no entropía
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
+    expect(res.status).toBe(500);
+  });
+
+  test("DEFAULT_ADMIN_USERNAME con caracteres inválidos -> 500", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_USERNAME = "admin user!";
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
+    expect(res.status).toBe(500);
+  });
+
+  test("DEFAULT_ADMIN_USERNAME solo espacios -> cae al fallback 'admin'", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_USERNAME = "   ";
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
+    expect(res.status).toBe(200);
+    expect(await User.findOne({ username: "admin" })).not.toBeNull();
+  });
+
+  test("DEFAULT_ADMIN_USERNAME coincide con usuario existente no-SuperAdmin -> 500, no lo confunde con 'ya inicializado'", async () => {
+    process.env.ALLOW_SETUP = "true";
+    process.env.DEFAULT_ADMIN_USERNAME = "colision";
+    await createUser("colision", "clave12345", "Delegado");
+
+    const res = await request(app)
+      .post("/api/auth/setup")
+      .set("X-Setup-Token", VALID_TOKEN);
+    expect(res.status).toBe(500);
+    expect(res.body.message).not.toMatch(/ya está inicializado/);
+  });
 });
