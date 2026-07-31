@@ -185,6 +185,11 @@ Para generar un `JWT_SECRET` seguro:
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
+### Versionado del cliente
+
+La versión mostrada en la interfaz (`vX.Y.Z`, esquina inferior izquierda) se lee de `client/package.json` en tiempo de build vía `vite.config.js` (`__APP_VERSION__`).
+Para publicar una nueva versión: actualiza el campo `version` de `client/package.json` antes de ejecutar `npm run build`. No requiere variables de entorno adicionales.
+
 ---
 
 ## Inicialización del sistema

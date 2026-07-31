@@ -11,7 +11,7 @@ import SeriesSOR from "./pages/SeriesSOR";
 import ToastContainer from "./components/ToastContainer";
 import NotFound from "./pages/NotFound";
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+const APP_VERSION = __APP_VERSION__;
 
 function App() {
   return (
