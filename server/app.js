@@ -18,6 +18,10 @@ const auditRoutes = require("./routes/auditRoutes");
 const authRoutes = require("./routes/authRoutes");
 const sorRoutes = require("./routes/sorRoutes");
 const registrationRoutes = require("./routes/registrationRoutes");
+const {
+  parsePositiveInt,
+  MAX_SAFE_TIMEOUT_MS,
+} = require("./utils/parseEnvInt");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -33,12 +37,16 @@ const createApp = () => {
 
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins, credentials: true }));
-  app.use(express.json({ limit: "10kb" }));
+  app.use(express.json({ limit: process.env.BODY_LIMIT || "10kb" }));
   app.use(cookieParser());
 
   const writeLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 100,
+    windowMs: parsePositiveInt(
+      process.env.RATE_LIMIT_WRITE_WINDOW_MS,
+      60 * 1000,
+      MAX_SAFE_TIMEOUT_MS,
+    ),
+    max: parsePositiveInt(process.env.RATE_LIMIT_WRITE_MAX, 100),
     message: { message: "Demasiadas peticiones. Espera un momento." },
   });
 

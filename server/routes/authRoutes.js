@@ -11,15 +11,48 @@ const jwt = require("jsonwebtoken"); // Generación de tokens JWT
 const User = require("../models/User");
 const rateLimit = require("express-rate-limit"); // Protección contra fuerza bruta
 const auth = require("../middleware/auth");
+const crypto = require("crypto");
+const {
+  parsePositiveInt,
+  MAX_SAFE_TIMEOUT_MS,
+} = require("../utils/parseEnvInt");
+const { validateSecretStrength } = require("../utils/secretStrength");
+const { isValidUsername } = require("../utils/validateUsername");
+
+const resolveJwtExpiresIn = (raw) => {
+  if (!raw) return "48h";
+  const trimmed = raw.trim();
+  // jsonwebtoken interpreta un number como segundos, y un string como ms().
+  // Un env var puramente numérico ("3600") lo tratamos como segundos,
+  // que es la interpretación intuitiva para quien configura el .env.
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : trimmed;
+};
+
+const JWT_EXPIRES_IN = resolveJwtExpiresIn(process.env.JWT_EXPIRES_IN);
+
+try {
+  jwt.sign({}, "validation-only", { expiresIn: JWT_EXPIRES_IN });
+} catch (err) {
+  console.error(
+    `❌ FATAL: JWT_EXPIRES_IN inválido ("${process.env.JWT_EXPIRES_IN}"): ${err.message}`,
+  );
+  process.exit(1);
+}
+
+const LOGIN_WINDOW_MS = parsePositiveInt(
+  process.env.RATE_LIMIT_LOGIN_WINDOW_MS,
+  15 * 60 * 1000,
+  MAX_SAFE_TIMEOUT_MS,
+);
+const LOGIN_WINDOW_MINUTES = Math.max(1, Math.ceil(LOGIN_WINDOW_MS / 60000));
 
 // Rate limiter: máximo 10 intentos de login cada 15 minutos por IP
 // Protege contra ataques de fuerza bruta
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // Ventana de 15 minutos
-  max: 10, // Máximo 10 intentos
+  windowMs: LOGIN_WINDOW_MS,
+  max: parsePositiveInt(process.env.RATE_LIMIT_LOGIN_MAX, 10),
   message: {
-    message:
-      "Demasiados intentos de inicio de sesión. Ha sido bloqueado por 15 minutos.",
+    message: `Demasiados intentos de inicio de sesión. Ha sido bloqueado por ${LOGIN_WINDOW_MINUTES} minutos.`,
   },
   skip: () =>
     process.env.NODE_ENV === "test" &&
@@ -64,7 +97,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: "48h" },
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     // Envía el JWT como cookie httpOnly (no accesible desde JavaScript del cliente)
@@ -73,7 +106,10 @@ router.post("/login", loginLimiter, async (req, res) => {
       httpOnly: true, // No accesible desde JS del navegador
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Protección contra CSRF
-      maxAge: 48 * 60 * 60 * 1000, // Expira en 48 horas (en ms)
+      maxAge: parsePositiveInt(
+        process.env.COOKIE_MAX_AGE_MS,
+        48 * 60 * 60 * 1000,
+      ),
     });
 
     // También devuelve los datos del usuario en el body del response
@@ -121,30 +157,102 @@ router.post("/setup", async (req, res) => {
     });
   }
 
+  const bootstrapToken = process.env.SETUP_BOOTSTRAP_TOKEN;
+  const tokenError = validateSecretStrength(bootstrapToken, {
+    minLength: 20,
+    minUniqueChars: 8,
+  });
+  if (tokenError) {
+    return res
+      .status(500)
+      .json({ message: `SETUP_BOOTSTRAP_TOKEN inválido: ${tokenError} ` });
+  }
+
+  const provided = Buffer.from(
+    typeof req.headers["x-setup-token"] === "string"
+      ? req.headers["x-setup-token"]
+      : "",
+  );
+  const expected = Buffer.from(bootstrapToken);
+  if (
+    provided.length !== expected.length ||
+    !crypto.timingSafeEqual(provided, expected)
+  ) {
+    return res
+      .status(401)
+      .json({ message: "Token de inicialización inválido." });
+  }
+
+  const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+  const passwordError = validateSecretStrength(defaultPassword, {
+    minLength: 12,
+    minUniqueChars: 6,
+  });
+  if (passwordError) {
+    return res
+      .status(500)
+      .json({ message: `DEFAULT_ADMIN_PASSWORD inválido: ${passwordError}` });
+  }
+
+  // Trim primero: " " es truthy y saltaría el fallback "admin", quedando luego
+  // vacío tras el trim() de /login -> SuperAdmin inalcanzable.
+  const rawUsername = (process.env.DEFAULT_ADMIN_USERNAME || "").trim();
+  const defaultUsername = rawUsername || "admin";
+  if (!isValidUsername(defaultUsername)) {
+    return res.status(500).json({
+      message:
+        "DEFAULT_ADMIN_USERNAME inválido (máx 32 caracteres, solo letras/números/._-).",
+    });
+  }
+
   try {
-    // Comprueba si ya existe un SuperAdmin
+    // Chequeo rápido para dar un mensaje claro en el caso común (no es la
+    // garantía real de atomicidad, eso lo hace el índice único parcial)
     const existingAdmin = await User.findOne({ role: "SuperAdmin" });
     if (existingAdmin)
       return res
         .status(400)
         .json({ message: "El sistema ya está inicializado." });
 
+    // Precheck: un 11000 por username (no por role) no significa "ya inicializado",
+    // significa que DEFAULT_ADMIN_USERNAME choca con un usuario ya existente.
+    const usernameToken = await User.findOne({ username: defaultUsername });
+    if (usernameToken) {
+      return res.status(500).json({
+        message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) y existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
+      });
+    }
+
     // Hashea la contraseña por defecto con bcrypt (salt de 10 rondas)
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash("admin123", salt);
+    const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
     // Crea el usuario SuperAdmin
-    const newAdmin = new User({
-      username: "admin",
+    await new User({
+      username: defaultUsername,
       password: hashedPassword,
       role: "SuperAdmin",
-    });
+    }).save();
 
-    await newAdmin.save();
     res.json({
-      message: "SuperAdmin creado con éxito. Usuario: admin, Clave: admin123",
+      message: `SuperAdmin '${defaultUsername}' creado con éxito. Usa la contraseña definida en DEFAULT_ADMIN_PASSWORD.`,
     });
   } catch (err) {
+    // Fallback de la carrera: dos requests concurrentes pueden pasar ambos
+    // prechecks antes de que cualquiera haga save(). El índice único
+    // distingue qué invariante se violó.
+    if (err.code === 11000) {
+      if (err.keyPattern?.role) {
+        return res
+          .status(400)
+          .json({ message: "El sistema ya está inicializado." });
+      }
+      if (err.keyPattern?.username) {
+        return res.status(500).json({
+          message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) ya existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
+        });
+      }
+    }
     res.status(500).json({ message: err.message });
   }
 });
