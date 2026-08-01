@@ -176,9 +176,9 @@ export default function RegistrationPanel({
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           {/* Sidebar: configuración webhook */}
-          <div className="w-72 border-r bg-gray-50 p-4 overflow-y-auto shrink-0 space-y-4">
+          <div className="w-full md:w-72 max-h-[40vh] md:max-h-none border-b md:border-b-0 md:border-r bg-gray-50 p-4 overflow-y-auto shrink-0 space-y-4">
             <div>
               <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">
                 ⚙️ Webhook Google Form
