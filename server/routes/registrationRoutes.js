@@ -283,54 +283,75 @@ router.patch(
 
       if (compDoc?.series && compDoc.series.trim() !== "") {
         try {
+          const now = new Date();
           const seriesComps = await Competition.find({
             series: compDoc.series,
             _id: { $ne: compDoc._id },
             isDeleted: { $ne: true },
+            endDate: { $gte: now }, // No reflejar en competiciones ya concluidas
           });
 
           for (const seriesComp of seriesComps) {
+            const eligibleEvents = reg.events.filter((ev) =>
+              seriesComp.events.includes(ev),
+            );
+            if (eligibleEvents.length === 0) continue; // Sin eventos en común, nada que reflejar
+
+            const mirrorSession = await mongoose.startSession();
             try {
-              const alreadyExists = await Competitor.findOne({
-                name: reg.name,
-                competition: seriesComp._id,
-                isDeleted: { $ne: true },
-              });
-              if (alreadyExists) continue;
-
-              const countInTarget = await Competitor.countDocuments({
-                competition: seriesComp._id,
-                isDeleted: { $ne: true },
-              });
-              if (countInTarget >= seriesComp.competitorLimit) continue;
-
               let mirroredCreated = false;
+
               for (let attempt = 0; attempt <= 2; attempt++) {
-                const lastInTarget = await Competitor.findOne({
-                  competition: seriesComp._id,
-                })
-                  .sort({ competitorNumber: -1 })
-                  .lean();
-                const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
                 try {
-                  await new Competitor({
-                    competitorNumber: nextNum,
-                    name: reg.name,
-                    wcaId: reg.wcaId || "",
-                    age: reg.age,
-                    birthDate: reg.birthDate,
-                    locality: reg.locality || "",
-                    competition: seriesComp._id,
-                    events: reg.events,
-                  }).save();
+                  await mirrorSession.withTransaction(async () => {
+                    const alreadyExists = await Competitor.findOne({
+                      name: reg.name,
+                      competition: seriesComp._id,
+                      isDeleted: { $ne: true },
+                    }).session(mirrorSession);
+                    if (alreadyExists)
+                      throw Object.assign(new Error("skip"), { skip: true });
+
+                    const countInTarget = await Competitor.countDocuments({
+                      competition: seriesComp._id,
+                      isDeleted: { $ne: true },
+                    }).session(mirrorSession);
+                    if (countInTarget >= seriesComp.competitorLimit)
+                      throw Object.assign(new Error("skip"), { skip: true });
+
+                    const lastInTarget = await Competitor.findOne({
+                      competition: seriesComp._id,
+                    })
+                      .sort({ competitorNumber: -1 })
+                      .session(mirrorSession)
+                      .lean();
+                    const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
+
+                    await new Competitor({
+                      competitorNumber: nextNum,
+                      name: reg.name,
+                      wcaId: reg.wcaId || "",
+                      age: reg.age,
+                      birthDate: reg.birthDate,
+                      locality: reg.locality || "",
+                      competition: seriesComp._id,
+                      events: eligibleEvents,
+                    }).save({ session: mirrorSession });
+                  });
                   mirroredCreated = true;
                   break;
                 } catch (innerErr) {
+                  if (innerErr.skip) break; // Ya existe o aforo lleno: omisión esperada, no error
                   if (
                     innerErr.code === 11000 &&
                     innerErr.keyPattern?.competitorNumber
                   ) {
-                    if (attempt === 2) break;
+                    if (attempt === 2) {
+                      console.error(
+                        `Auto-inscripción fallida en "${seriesComp.name}": conflicto de número de competidor tras 3 intentos.`,
+                      );
+                      break;
+                    }
                     continue;
                   }
                   throw innerErr;
@@ -347,6 +368,8 @@ router.patch(
                 `Auto-inscripción fallida en "${seriesComp.name}":`,
                 innerErr.message,
               );
+            } finally {
+              await mirrorSession.endSession();
             }
           }
         } catch (seriesErr) {
