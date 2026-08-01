@@ -241,7 +241,7 @@ describe("POST /api/auth/setup", () => {
   test("DEFAULT_ADMIN_PASSWORD = 'admin123' -> 500", async () => {
     process.env.ALLOW_SETUP = "true";
     process.env.DEFAULT_ADMIN_PASSWORD = "admin123";
-    const res = request(app)
+    const res = await request(app)
       .post("/api/auth/setup")
       .set("X-Setup-Token", VALID_TOKEN);
     expect(res.status).toBe(500);
