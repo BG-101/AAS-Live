@@ -199,6 +199,7 @@ router.patch(
 
       let newCompetitor;
       let registrationResult;
+      let compDoc;
       const businessError = (msg) =>
         Object.assign(new Error(msg), { status: 400 });
 
@@ -261,6 +262,7 @@ router.patch(
 
             registrationResult = claimed;
             newCompetitor = createdCompetitor;
+            compDoc = comp;
           });
           break;
         } catch (err) {
@@ -277,6 +279,82 @@ router.patch(
 
       if (!newCompetitor) {
         throw lastError || new Error("No se pudo crear el competidor.");
+      }
+
+      if (compDoc?.series && compDoc.series.trim() !== "") {
+        try {
+          const seriesComps = await Competition.find({
+            series: compDoc.series,
+            _id: { $ne: compDoc._id },
+            isDeleted: { $ne: true },
+          });
+
+          for (const seriesComp of seriesComps) {
+            try {
+              const alreadyExists = await Competitor.findOne({
+                name: reg.name,
+                competition: seriesComp._id,
+                isDeleted: { $ne: true },
+              });
+              if (alreadyExists) continue;
+
+              const countInTarget = await Competitor.countDocuments({
+                competition: seriesComp._id,
+                isDeleted: { $ne: true },
+              });
+              if (countInTarget >= seriesComp.competitorLimit) continue;
+
+              let mirroredCreated = false;
+              for (let attempt = 0; attempt <= 2; attempt++) {
+                const lastInTarget = await Competitor.findOne({
+                  competition: seriesComp._id,
+                })
+                  .sort({ competitorNumber: -1 })
+                  .lean();
+                const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
+                try {
+                  await new Competitor({
+                    competitorNumber: nextNum,
+                    name: reg.name,
+                    wcaId: reg.wcaId || "",
+                    age: reg.age,
+                    birthDate: reg.birthDate,
+                    locality: reg.locality || "",
+                    competition: seriesComp._id,
+                    events: reg.events,
+                  }).save();
+                  mirroredCreated = true;
+                  break;
+                } catch (innerErr) {
+                  if (
+                    innerErr.code === 11000 &&
+                    innerErr.keyPattern?.competitorNumber
+                  ) {
+                    if (attempt === 2) break;
+                    continue;
+                  }
+                  throw innerErr;
+                }
+              }
+
+              if (mirroredCreated) {
+                req.app.get("socketio")?.emit("competidor_actualizado", {
+                  competitionId: seriesComp._id.toString(),
+                });
+              }
+            } catch (innerErr) {
+              console.error(
+                `Auto-inscripción fallida en "${seriesComp.name}":`,
+                innerErr.message,
+              );
+            }
+          }
+        } catch (seriesErr) {
+          console.error(
+            "Error buscando competiciones de la serie:",
+            seriesErr.message,
+          );
+        }
       }
 
       req.app.get("socketio")?.emit("competidor_actualizado", {
