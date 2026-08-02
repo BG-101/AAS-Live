@@ -63,7 +63,7 @@ const resolveAgeGroupsClient = (competition) =>
           const aMin = a.minAge ?? -Infinity;
           const bMin = b.minAge ?? -Infinity;
           if (aMin !== bMin) return aMin - bMin;
-          return (a.maxAge ?? Infinity) - (b.minAge ?? Infinity);
+          return (a.maxAge ?? Infinity) - (b.maxAge ?? Infinity);
         })
     : DEFAULT_AGE_GROUPS_CLIENT;
 
