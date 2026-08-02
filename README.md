@@ -18,6 +18,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 - [Funcionalidades principales](#funcionalidades-principales)
 - [API](#api)
 - [Seguridad](#seguridad)
+- [Tests](#tests)
 
 ---
 
@@ -253,7 +254,10 @@ Los usuarios sin sesión iniciada pueden ver la lista de competiciones y los res
 
 ### Competiciones y series
 
-Las competiciones pueden agruparse en **series** (ligas). Los competidores inscritos en una competición de una serie se inscriben automáticamente en todas las demás competiciones de la misma, respetando el límite de aforo de cada una.
+Las competiciones pueden agruparse en **series** (ligas). Al inscribir un competidor en una competición de una serie, se replica automáticamente en el resto de competiciones de esa serie, respetando el límite de aforo de cada una. El comportamiento varía según la vía de inscripción:
+
+- **Alta directa** (`POST /api/competitors`): se refleja en todas las competiciones activas en la serie, copiando la lista de eventos tal cual se envió.
+- **Aprobación de inscripción** (`PATCH /api/registrations/:id/approve`): se refleja solo en competiciones de la serie **aún no finalizadas** (`endDate` >= fecha actual), y únicamente con los eventos en **común** entre la inscripción original y cada competición destino. La comprobación de aforo/duplicado y la inserción son atómicas por competición destino (transacción de Mongo), de forma que aprobaciones concurrentes de la misma persona en distintas competiciones de la serie no exceden el aforo ni dupliquen el registro.
 
 ### Gestión de inscripciones (v1.1.0)
 
@@ -262,7 +266,7 @@ El sistema incorpora un flujo completo de inscripción para prepararse antes de 
 - **Webhook seguro** para recibir solicitudes desde Google Forms o formularios externos.
 - **Alta manual** desde el panel de organización para incorporar participantes sin formulario.
 - **Estados de inscripción**: pendiente, aprobada o rechazada, con historial de acciones.
-- **Aprobación automática** que crea el competidor asociado y respeta el aforo configurado.
+- **Aprobación automática** que crea el competidor asociado, respeta el aforo configurado y lo replica en las competiciones activas de la serie (si aplica).
 - **Rechazo con motivo opcional** para gestionar casos especiales de forma ordenada.
 
 ### Gestión de rondas
@@ -321,41 +325,41 @@ Al guardar resultados, el sistema detecta tiempos que superan 3 veces la mediana
 
 Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 
-| Método | Endpoint                                          | Auth           | Descripción                                      |
-| ------ | ------------------------------------------------- | -------------- | ------------------------------------------------ |
-| POST   | `/api/auth/login`                                 | —              | Inicia sesión                                    |
-| GET    | `/api/auth/me`                                    | ✅             | Verifica sesión activa (resuelto desde el token) |
-| POST   | `/api/auth/logout`                                | —              | Cierra sesión                                    |
-| POST   | `/api/auth/register`                              | SuperAdmin     | Crea un nuevo usuario                            |
-| POST   | `/api/auth/setup`                                 | —              | Inicialización (requiere `ALLOW_SETUP=true`)     |
-| POST   | `/api/auth/logout-projectors`                     | Admin/Delegado | Fuerza cierre de sesión en pantallas Espectador  |
-| GET    | `/api/competitions`                               | —              | Lista todas las competiciones activas            |
-| GET    | `/api/competitions/:id`                           | —              | Detalle de una competición                       |
-| POST   | `/api/competitions`                               | SuperAdmin     | Crea una competición                             |
-| DELETE | `/api/competitions/:id`                           | SuperAdmin     | Soft delete de una competición                   |
-| POST   | `/api/competitions/:id/next-round`                | Admin/Delegado | Abre la siguiente ronda                          |
-| PUT    | `/api/competitions/:id/round-settings`            | Admin/Delegado | Actualiza configuración de ronda                 |
-| PUT    | `/api/competitions/:id/round-status`              | Admin/Delegado | Abre o cierra una ronda                          |
-| DELETE | `/api/competitions/:id/round-results-after`       | Admin/Delegado | Elimina resultados de rondas posteriores a una   |
-| GET    | `/api/competitors/:compId`                        | —              | Lista competidores de una competición            |
-| GET    | `/api/competitors/:compId/eligible/:event/:round` | —              | Competidores elegibles para una ronda            |
-| POST   | `/api/competitors`                                | Admin/Delegado | Inscribe un competidor                           |
-| PUT    | `/api/competitors/:id`                            | SuperAdmin     | Edita los datos de un competidor                 |
-| DELETE | `/api/competitors/:id`                            | Admin/Delegado | Soft delete de un competidor                     |
-| DELETE | `/api/competitors/empty-trash/:compId`            | SuperAdmin     | Vacía la papelera de una competición             |
-| PATCH  | `/api/competitors/:id/withdraw`                   | Admin/Delegado | Marca o desmarca una retirada de ronda           |
-| GET    | `/api/registrations/:compId`                      | Admin/Delegado | Lista las inscripciones de una competición       |
-| POST   | `/api/registrations/webhook/:compId`              | —              | Recibe inscripciones desde un formulario externo |
-| POST   | `/api/registrations/manual/:compId`               | Admin/Delegado | Crea una inscripción manualmente                 |
-| POST   | `/api/registrations/:compId/generate-secret`      | SuperAdmin     | Genera o regenera el secreto del webhook         |
-| PATCH  | `/api/registrations/:id/approve`                  | Admin/Delegado | Aprueba una inscripción y crea el competidor     |
-| PATCH  | `/api/registrations/:id/reject`                   | Admin/Delegado | Rechaza una inscripción con motivo opcional      |
-| DELETE | `/api/registrations/:id`                          | SuperAdmin     | Elimina físicamente una inscripción              |
-| GET    | `/api/results/:compId/:event/:round`              | —              | Resultados de una ronda                          |
-| POST   | `/api/results`                                    | Admin/Delegado | Guarda los tiempos de un competidor              |
-| GET    | `/api/audit/:compId`                              | Admin/Delegado | Log de auditoría de una competición              |
-| GET    | `/api/sor/:compId`                                | —              | Ranking SOR de una competición                   |
-| GET    | `/api/sor/series/:seriesName`                     | —              | Ranking SOR agregado de una serie                |
+| Método | Endpoint                                          | Auth           | Descripción                                                                                                          |
+| ------ | ------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/auth/login`                                 | —              | Inicia sesión                                                                                                        |
+| GET    | `/api/auth/me`                                    | ✅             | Verifica sesión activa (resuelto desde el token)                                                                     |
+| POST   | `/api/auth/logout`                                | —              | Cierra sesión                                                                                                        |
+| POST   | `/api/auth/register`                              | SuperAdmin     | Crea un nuevo usuario                                                                                                |
+| POST   | `/api/auth/setup`                                 | —              | Inicialización (requiere `ALLOW_SETUP=true`)                                                                         |
+| POST   | `/api/auth/logout-projectors`                     | Admin/Delegado | Fuerza cierre de sesión en pantallas Espectador                                                                      |
+| GET    | `/api/competitions`                               | —              | Lista todas las competiciones activas                                                                                |
+| GET    | `/api/competitions/:id`                           | —              | Detalle de una competición                                                                                           |
+| POST   | `/api/competitions`                               | SuperAdmin     | Crea una competición                                                                                                 |
+| DELETE | `/api/competitions/:id`                           | SuperAdmin     | Soft delete de una competición                                                                                       |
+| POST   | `/api/competitions/:id/next-round`                | Admin/Delegado | Abre la siguiente ronda                                                                                              |
+| PUT    | `/api/competitions/:id/round-settings`            | Admin/Delegado | Actualiza configuración de ronda                                                                                     |
+| PUT    | `/api/competitions/:id/round-status`              | Admin/Delegado | Abre o cierra una ronda                                                                                              |
+| DELETE | `/api/competitions/:id/round-results-after`       | Admin/Delegado | Elimina resultados de rondas posteriores a una                                                                       |
+| GET    | `/api/competitors/:compId`                        | —              | Lista competidores de una competición                                                                                |
+| GET    | `/api/competitors/:compId/eligible/:event/:round` | —              | Competidores elegibles para una ronda                                                                                |
+| POST   | `/api/competitors`                                | Admin/Delegado | Inscribe un competidor                                                                                               |
+| PUT    | `/api/competitors/:id`                            | SuperAdmin     | Edita los datos de un competidor                                                                                     |
+| DELETE | `/api/competitors/:id`                            | Admin/Delegado | Soft delete de un competidor                                                                                         |
+| DELETE | `/api/competitors/empty-trash/:compId`            | SuperAdmin     | Vacía la papelera de una competición                                                                                 |
+| PATCH  | `/api/competitors/:id/withdraw`                   | Admin/Delegado | Marca o desmarca una retirada de ronda                                                                               |
+| GET    | `/api/registrations/:compId`                      | Admin/Delegado | Lista las inscripciones de una competición                                                                           |
+| POST   | `/api/registrations/webhook/:compId`              | —              | Recibe inscripciones desde un formulario externo                                                                     |
+| POST   | `/api/registrations/manual/:compId`               | Admin/Delegado | Crea una inscripción manualmente                                                                                     |
+| POST   | `/api/registrations/:compId/generate-secret`      | SuperAdmin     | Genera o regenera el secreto del webhook                                                                             |
+| PATCH  | `/api/registrations/:id/approve`                  | Admin/Delegado | Aprueba una inscripción, crea el competidor y lo replica en la serie (competiciones no finalizada, eventos en común) |
+| PATCH  | `/api/registrations/:id/reject`                   | Admin/Delegado | Rechaza una inscripción con motivo opcional                                                                          |
+| DELETE | `/api/registrations/:id`                          | SuperAdmin     | Elimina físicamente una inscripción                                                                                  |
+| GET    | `/api/results/:compId/:event/:round`              | —              | Resultados de una ronda                                                                                              |
+| POST   | `/api/results`                                    | Admin/Delegado | Guarda los tiempos de un competidor                                                                                  |
+| GET    | `/api/audit/:compId`                              | Admin/Delegado | Log de auditoría de una competición                                                                                  |
+| GET    | `/api/sor/:compId`                                | —              | Ranking SOR de una competición                                                                                       |
+| GET    | `/api/sor/series/:seriesName`                     | —              | Ranking SOR agregado de una serie                                                                                    |
 
 ---
 
@@ -372,6 +376,17 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 - **Auditoría**: cada modificación de tiempos queda registrada en `AuditLog` con el estado anterior y el nuevo, accesible solo para admins.
 - **Endpoint de bootstrap protegido**: `/api/auth/setup` requiere un token dedicado (`SETUP_BOOTSTRAP_TOKEN`, comparado con `crypto.timingSafeEqual`) además de `ALLOW_SETUP=true`; el token y la contraseña por defecto se validan por entropía (longitud mínima, diversidad de caracteres, denylist de valores comunes) antes de poder crear el primer SuperAdmin.
 - **Configuración externalizada**: rate limits (login y escritura), duración del JWT, `maxAge` de la cookie y límite del body JSON se leen de variables de entorno con parseo seguro (`parsePositiveInt`), evitando valores negativos, `NaN` o superiores al límite de timers de Node.
+
+---
+
+## Tests
+
+```bash
+cd server
+npm test
+```
+
+Suite en Jest + Supertest, con `MongoMemoryReplSet` por fichero. Se ejecuta en serie (`--runInBand`) porque varios replica sets en memoria en paralelo compiten por CPU/puertos y provocan timeouts espurios en tests sin relación con el fallo real.
 
 ---
 
