@@ -435,7 +435,9 @@ async function calculateSOR(compId, ageGroup = null) {
   let allCompetitors = await Competitor.find({
     competition: compId,
     isDeleted: { $ne: true },
-  }).lean();
+  })
+    .select("+birthDate")
+    .lean();
 
   if (ageGroup)
     allCompetitors = filterByAgeGroup(

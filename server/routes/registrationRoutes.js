@@ -52,8 +52,12 @@ router.post(
   async (req, res) => {
     try {
       const secret = req.headers["x-webhook-secret"];
-      const comp = await getCompetitionOrFail(req.params.compId, res);
-      if (!comp) return;
+      const comp = await Competition.findOne({
+        _id: req.params.compId,
+        isDeleted: { $ne: true },
+      }).select("+webhookSecret");
+      if (!comp)
+        return res.status(404).json({ message: "Competición no encontrada." });
       const expected = Buffer.from(comp.webhookSecret || "");
       const provided = Buffer.from(typeof secret === "string" ? secret : "");
       if (
@@ -388,6 +392,7 @@ router.patch(
         competitor: newCompetitor,
       });
     } catch (err) {
+      console.error("Error en /approve:", err);
       res.status(err.status === 400 ? 400 : 500).json({ message: err.message });
     } finally {
       session.endSession();
@@ -408,7 +413,7 @@ router.patch(
           status: "rejected",
           rejectedAt: new Date(),
           rejectedBy: req.user?.username || "Desconocido",
-          notes: req.body.notes || "",
+          notes: req.body?.notes || "",
         },
         { new: true },
       );
@@ -423,6 +428,7 @@ router.patch(
       }
       res.json(reg);
     } catch (err) {
+      console.error("Error en /reject:", err);
       res.status(500).json({ message: err.message });
     }
   },
