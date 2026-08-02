@@ -45,19 +45,26 @@ const DEFAULT_AGE_GROUPS_CLIENT = [
 
 const resolveAgeGroupsClient = (competition) =>
   competition?.ageGroups?.length > 0
-    ? competition.ageGroups.map((g) => ({
-        _id: g._id,
-        label:
-          g.minAge != null && g.maxAge != null
-            ? `${g.label} (${g.minAge}-${g.maxAge})`
-            : g.maxAge != null
-              ? `${g.label} (<=${g.maxAge})`
-              : g.minAge != null
-                ? `${g.label} (>=${g.minAge})`
-                : g.label,
-        minAge: g.minAge,
-        maxAge: g.maxAge,
-      }))
+    ? competition.ageGroups
+        .map((g) => ({
+          _id: g._id,
+          label:
+            g.minAge != null && g.maxAge != null
+              ? `${g.label} (${g.minAge}-${g.maxAge})`
+              : g.maxAge != null
+                ? `${g.label} (<=${g.maxAge})`
+                : g.minAge != null
+                  ? `${g.label} (>=${g.minAge})`
+                  : g.label,
+          minAge: g.minAge,
+          maxAge: g.maxAge,
+        }))
+        .sort((a, b) => {
+          const aMin = a.minAge ?? -Infinity;
+          const bMin = b.minAge ?? -Infinity;
+          if (aMin !== bMin) return aMin - bMin;
+          return (a.maxAge ?? Infinity) - (b.minAge ?? Infinity);
+        })
     : DEFAULT_AGE_GROUPS_CLIENT;
 
 const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {

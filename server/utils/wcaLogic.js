@@ -350,12 +350,19 @@ const DEFAULT_AGE_GROUPS = [
  */
 const resolveAgeGroups = (comp) => {
   if (comp?.ageGroups?.length > 0) {
-    return comp.ageGroups.map((g) => ({
-      _id: g._id.toString(),
-      label: g.label,
-      minAge: g.minAge ?? undefined,
-      maxAge: g.maxAge ?? undefined,
-    }));
+    return comp.ageGroups
+      .map((g) => ({
+        _id: g._id.toString(),
+        label: g.label,
+        minAge: g.minAge ?? undefined,
+        maxAge: g.maxAge ?? undefined,
+      }))
+      .sort((a, b) => {
+        const aMin = a.minAge ?? -Infinity;
+        const bMin = b.minAge ?? -Infinity;
+        if (aMin !== bMin) return aMin - bMin;
+        return (a.maxAge ?? Infinity) - (b.maxAge ?? Infinity);
+      });
   }
   return DEFAULT_AGE_GROUPS;
 };
