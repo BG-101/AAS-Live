@@ -1201,6 +1201,7 @@ function CompetitionDetails() {
               <SORTable
                 compId={compId}
                 ageGroupsEnabled={competition.ageGroupsEnabled}
+                isRoundFinished={isRoundFinished}
               />
             </div>
           ) : (
