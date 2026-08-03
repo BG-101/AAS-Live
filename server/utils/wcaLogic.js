@@ -368,6 +368,61 @@ const resolveAgeGroups = (comp) => {
 };
 
 /**
+ * Calcula homogeneidad de grupos de edad entre las competiciones de una serie.
+ */
+const computeSeriesAgeGroupHomogeneity = (competitions) => {
+  const ageGroupsEnabledComps = competitions.filter((c) => c.ageGroupsEnabled);
+  const ageGroupsEnabled = ageGroupsEnabledComps.length > 0;
+
+  const groupSignature = (comp) =>
+    resolveAgeGroups(comp)
+      .map(
+        (g) =>
+          `${g.label.trim().toLowerCase()}|${g.minAge ?? ""}|${g.maxAge ?? ""}`,
+      )
+      .sort()
+      .join(",");
+
+  let ageGroupsHomogeneus = true;
+  if (ageGroupsEnabled) {
+    if (ageGroupsEnabledComps.length !== competitions.length) {
+      ageGroupsHomogeneus = false;
+    } else if (ageGroupsEnabledComps.length > 1) {
+      const signature = groupSignature(ageGroupsEnabledComps[0]);
+      ageGroupsHomogeneus = ageGroupsEnabledComps.every(
+        (c) => groupSignature(c) === signature,
+      );
+    }
+  }
+
+  const ageGroupsSource = ageGroupsEnabledComps[0] || null;
+  const seriesAgeGroups =
+    ageGroupsEnabled && ageGroupsHomogeneus && ageGroupsSource
+      ? resolveAgeGroups(ageGroupsSource)
+      : [];
+
+  return {
+    ageGroupsEnabled,
+    ageGroupsHomogeneus,
+    ageGroupsSource,
+    seriesAgeGroups,
+  };
+};
+
+/**
+ * Traduce un label de grupo de edad de la serie al _id local de una competición.
+ */
+const resolveLocalAgeGroupId = (comp, label) => {
+  if (!label || !comp.ageGroupsEnabled) return null;
+  const normalizedTarget = label.trim().toLowerCase();
+  return (
+    resolveAgeGroups(comp).find(
+      (g) => g.label.trim().toLowerCase() === normalizedTarget,
+    )?._id || null
+  );
+};
+
+/**
  * Calcula la edad de una persona en una fecha de referencia dada.
  */
 const getAgeAtDate = (birthDate, referenceDate) => {
@@ -587,6 +642,8 @@ module.exports = {
   calculateSOR,
   DEFAULT_AGE_GROUPS,
   resolveAgeGroups,
+  computeSeriesAgeGroupHomogeneity,
+  resolveLocalAgeGroupId,
   getAgeAtDate,
   resolveCompetitorAge,
   F1_POINTS,

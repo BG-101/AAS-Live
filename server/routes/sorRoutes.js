@@ -8,7 +8,11 @@ const express = require("express");
 const router = express.Router();
 const Competition = require("../models/Competition");
 const validateObjectId = require("../middleware/validateObjectId");
-const { calculateSOR, resolveAgeGroups } = require("../utils/wcaLogic");
+const {
+  calculateSOR,
+  computeSeriesAgeGroupHomogeneity,
+  resolveLocalAgeGroupId,
+} = require("../utils/wcaLogic");
 
 // ============================================================
 // GET /api/sor/series/:seriesName
@@ -50,39 +54,12 @@ router.get("/series/:seriesName", async (req, res) => {
       });
     }
 
-    const ageGroupsEnabledComps = competitions.filter(
-      (c) => c.ageGroupsEnabled,
-    );
-    const ageGroupsEnabled = ageGroupsEnabledComps.length > 0;
-
-    // Firma normalizada: mismo conjunto de label+minAge+maxAge, sin importar el orden
-    const groupSignature = (comp) =>
-      resolveAgeGroups(comp)
-        .map(
-          (g) =>
-            `${g.label.trim().toLowerCase()}|${g.minAge ?? ""}|${g.maxAge ?? ""}`,
-        )
-        .sort()
-        .join(",");
-
-    let ageGroupsHomogeneus = true;
-    if (ageGroupsEnabled) {
-      if (ageGroupsEnabledComps.length !== competitions.length) {
-        // No todas las competiciones de la serie tienen grupos de edad activados
-        ageGroupsHomogeneus = false;
-      } else if (ageGroupsEnabledComps.length > 1) {
-        const signature = groupSignature(ageGroupsEnabledComps[0]);
-        ageGroupsHomogeneus = ageGroupsEnabledComps.every(
-          (c) => groupSignature(c) === signature,
-        );
-      }
-    }
-
-    const ageGroupsSource = ageGroupsEnabledComps[0] || null;
-    const seriesAgeGroups =
-      ageGroupsEnabled && ageGroupsHomogeneus && ageGroupsSource
-        ? resolveAgeGroups(ageGroupsSource)
-        : [];
+    const {
+      ageGroupsEnabled,
+      ageGroupsHomogeneus,
+      ageGroupsSource,
+      seriesAgeGroups,
+    } = computeSeriesAgeGroupHomogeneity(competitions);
 
     let ageGroupLabel = null;
     if (ageGroup && ageGroupsHomogeneus && ageGroupsSource) {
@@ -92,21 +69,13 @@ router.get("/series/:seriesName", async (req, res) => {
 
     // Calcula SOR individual de cada competición
     const compSORs = await Promise.all(
-      competitions.map(async (comp) => {
-        let localAgeGroupId = null;
-        if (ageGroupLabel && comp.ageGroupsEnabled) {
-          const localGroups = resolveAgeGroups(comp);
-          const normalizedTarget = ageGroupLabel.trim().toLowerCase();
-          localAgeGroupId =
-            localGroups.find(
-              (g) => g.label.trim().toLowerCase() === normalizedTarget,
-            )?._id || null;
-        }
-        return {
-          comp,
-          sor: await calculateSOR(comp._id.toString(), localAgeGroupId),
-        };
-      }),
+      competitions.map(async (comp) => ({
+        comp,
+        sor: await calculateSOR(
+          comp._id.toString(),
+          resolveLocalAgeGroupId(comp, ageGroupLabel),
+        ),
+      })),
     );
 
     // Función de clave de agrupación cross-competición
