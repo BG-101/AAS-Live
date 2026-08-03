@@ -119,7 +119,7 @@ aas-live/
 ### Requisitos previos
 
 - Node.js 18 o superior
-- Una instancia de MongoDB (local o Atlas)
+- Una instancia de MongoDB configurada como **Replica Set** (incluso de un único nodo). Es obligatorio: el sistema usa transacciones multi-documento (`mongoose.startSession()` / `withTransaction()`) al guardar resultados y al aprobar inscricpiones, y MongoDB solo soporta transacciones sobre un replica set.
 
 ### Pasos
 
@@ -158,6 +158,8 @@ El servidor corre por defecto en `http://localhost:3001` y el cliente en `http:/
 
 ```env
 # Conexión a MongoDB (URI completa con usuario y contraseña)
+# Debe apuntar a un MongoDB en modo Replica Set (Atlas ya lo es por defecto;
+# en local, inicializa con --replSet aunque sea un único nodo)
 MONGO_URI=mongodb+srv://<usuario>:<password>@cluster.mongodb.net/<dbname>
 
 # Secreto para firmar los JWT (genera uno con el comando de abajo)
@@ -300,7 +302,7 @@ Este criterio se aplica de forma consistente tanto en el SOR individual como en 
 
 ### Separación por grupos de edad
 
-Cuando está activada, la clasificación entre rondas es completamente independiente por grupo: el corte se aplica sobre el total de competidores de cada categoría por separado. La tabla de resultados incluye pestañas para filtrar por grupo.
+Cuando está activada, la clasificación entre rondas es completamente independiente por grupo: el corte se aplica sobre el total de competidores de cada categoría por separado. La tabla de resultados incluye pestañas para filtrar por grupo, ordenadas automáticamente de menor a mayor edad. En la tabla SOR, mientras la ronda del evento no esté cerrada, se muestra un aviso de que los puntos por grupo de edad son provisionales.
 
 ### Modo Proyector
 
@@ -359,7 +361,7 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 | POST   | `/api/results`                                    | Admin/Delegado | Guarda los tiempos de un competidor                                                                                  |
 | GET    | `/api/audit/:compId`                              | Admin/Delegado | Log de auditoría de una competición                                                                                  |
 | GET    | `/api/sor/:compId`                                | —              | Ranking SOR de una competición                                                                                       |
-| GET    | `/api/sor/series/:seriesName`                     | —              | Ranking SOR agregado de una serie                                                                                    |
+| GET    | `/api/sor/series/:seriesName`                     | —              | Ranking SOR agregado de una serie (409 si las competiciones de la serie mezclan sistemas de puntuación SOR/F1)       |
 
 ---
 
