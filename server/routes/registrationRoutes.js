@@ -52,8 +52,12 @@ router.post(
   async (req, res) => {
     try {
       const secret = req.headers["x-webhook-secret"];
-      const comp = await getCompetitionOrFail(req.params.compId, res);
-      if (!comp) return;
+      const comp = await Competition.findOne({
+        _id: req.params.compId,
+        isDeleted: { $ne: true },
+      }).select("+webhookSecret");
+      if (!comp)
+        return res.status(404).json({ message: "Competición no encontrada." });
       const expected = Buffer.from(comp.webhookSecret || "");
       const provided = Buffer.from(typeof secret === "string" ? secret : "");
       if (
@@ -199,6 +203,7 @@ router.patch(
 
       let newCompetitor;
       let registrationResult;
+      let compDoc;
       const businessError = (msg) =>
         Object.assign(new Error(msg), { status: 400 });
 
@@ -221,7 +226,7 @@ router.patch(
                 approvedAt: new Date(),
                 approvedBy: req.user?.username || "Desconocido",
               },
-              { new: true, session },
+              { returnDocument: "after", session },
             );
             if (!claimed) throw businessError("Ya aprobada.");
 
@@ -261,6 +266,7 @@ router.patch(
 
             registrationResult = claimed;
             newCompetitor = createdCompetitor;
+            compDoc = comp;
           });
           break;
         } catch (err) {
@@ -279,6 +285,105 @@ router.patch(
         throw lastError || new Error("No se pudo crear el competidor.");
       }
 
+      if (compDoc?.series && compDoc.series.trim() !== "") {
+        try {
+          const now = new Date();
+          const seriesComps = await Competition.find({
+            series: compDoc.series,
+            _id: { $ne: compDoc._id },
+            isDeleted: { $ne: true },
+            endDate: { $gte: now }, // No reflejar en competiciones ya concluidas
+          });
+
+          for (const seriesComp of seriesComps) {
+            const eligibleEvents = reg.events.filter((ev) =>
+              seriesComp.events.includes(ev),
+            );
+            if (eligibleEvents.length === 0) continue; // Sin eventos en común, nada que reflejar
+
+            const mirrorSession = await mongoose.startSession();
+            try {
+              let mirroredCreated = false;
+
+              for (let attempt = 0; attempt <= 2; attempt++) {
+                try {
+                  await mirrorSession.withTransaction(async () => {
+                    const alreadyExists = await Competitor.findOne({
+                      name: reg.name,
+                      competition: seriesComp._id,
+                      isDeleted: { $ne: true },
+                    }).session(mirrorSession);
+                    if (alreadyExists)
+                      throw Object.assign(new Error("skip"), { skip: true });
+
+                    const countInTarget = await Competitor.countDocuments({
+                      competition: seriesComp._id,
+                      isDeleted: { $ne: true },
+                    }).session(mirrorSession);
+                    if (countInTarget >= seriesComp.competitorLimit)
+                      throw Object.assign(new Error("skip"), { skip: true });
+
+                    const lastInTarget = await Competitor.findOne({
+                      competition: seriesComp._id,
+                    })
+                      .sort({ competitorNumber: -1 })
+                      .session(mirrorSession)
+                      .lean();
+                    const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
+
+                    await new Competitor({
+                      competitorNumber: nextNum,
+                      name: reg.name,
+                      wcaId: reg.wcaId || "",
+                      age: reg.age,
+                      birthDate: reg.birthDate,
+                      locality: reg.locality || "",
+                      competition: seriesComp._id,
+                      events: eligibleEvents,
+                    }).save({ session: mirrorSession });
+                  });
+                  mirroredCreated = true;
+                  break;
+                } catch (innerErr) {
+                  if (innerErr.skip) break; // Ya existe o aforo lleno: omisión esperada, no error
+                  if (
+                    innerErr.code === 11000 &&
+                    innerErr.keyPattern?.competitorNumber
+                  ) {
+                    if (attempt === 2) {
+                      console.error(
+                        `Auto-inscripción fallida en "${seriesComp.name}": conflicto de número de competidor tras 3 intentos.`,
+                      );
+                      break;
+                    }
+                    continue;
+                  }
+                  throw innerErr;
+                }
+              }
+
+              if (mirroredCreated) {
+                req.app.get("socketio")?.emit("competidor_actualizado", {
+                  competitionId: seriesComp._id.toString(),
+                });
+              }
+            } catch (innerErr) {
+              console.error(
+                `Auto-inscripción fallida en "${seriesComp.name}":`,
+                innerErr.message,
+              );
+            } finally {
+              await mirrorSession.endSession();
+            }
+          }
+        } catch (seriesErr) {
+          console.error(
+            "Error buscando competiciones de la serie:",
+            seriesErr.message,
+          );
+        }
+      }
+
       req.app.get("socketio")?.emit("competidor_actualizado", {
         competitionId: reg.competition.toString(),
       });
@@ -287,6 +392,7 @@ router.patch(
         competitor: newCompetitor,
       });
     } catch (err) {
+      console.error("Error en /approve:", err);
       res.status(err.status === 400 ? 400 : 500).json({ message: err.message });
     } finally {
       session.endSession();
@@ -307,9 +413,9 @@ router.patch(
           status: "rejected",
           rejectedAt: new Date(),
           rejectedBy: req.user?.username || "Desconocido",
-          notes: req.body.notes || "",
+          notes: req.body?.notes || "",
         },
-        { new: true },
+        { returnDocument: "after" },
       );
       if (!reg) {
         const exists = await Registration.exists({ _id: req.params.id });
@@ -322,6 +428,7 @@ router.patch(
       }
       res.json(reg);
     } catch (err) {
+      console.error("Error en /reject:", err);
       res.status(500).json({ message: err.message });
     }
   },

@@ -11,6 +11,8 @@ import SeriesSOR from "./pages/SeriesSOR";
 import ToastContainer from "./components/ToastContainer";
 import NotFound from "./pages/NotFound";
 
+const APP_VERSION = __APP_VERSION__;
+
 function App() {
   return (
     <>
@@ -29,6 +31,9 @@ function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <div className="fixed bottom-1 left-2 text-[10px] text-gray-500 z-10 pointer-events-none select-none">
+        v{APP_VERSION}
+      </div>
     </>
   );
 }

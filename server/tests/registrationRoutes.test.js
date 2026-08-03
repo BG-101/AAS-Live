@@ -28,8 +28,8 @@ const makeCompetition = (overrides = {}) =>
   Competition.create({
     wcaId: `Reg${Date.now()}${Math.random()}`,
     name: "Test Comp",
-    startDate: "2026-06-01",
-    endDate: "2026-06-01",
+    startDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    endDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
     location: "Test",
     events: ["3x3"],
     competitorLimit: 50,
@@ -214,7 +214,9 @@ describe("POST /api/registrations/:compId/generate-secret", () => {
     expect(res.status).toBe(200);
     expect(res.body.secret).toBeTruthy();
 
-    const updated = await Competition.findById(comp._id);
+    const updated = await Competition.findById(comp._id).select(
+      "+webhookSecret",
+    );
     expect(updated.webhookSecret).toBe(res.body.secret);
   });
 });
@@ -314,6 +316,99 @@ describe("PATCH /api/registrations/:id/approve", () => {
       .patch(`/api/registrations/${reg._id}/approve`)
       .set("Cookie", cookie);
     expect(res.status).toBe(400);
+  });
+
+  test("auto-inscribe en competiciones de la misma serie con eventos en común", async () => {
+    const seriesName = `SerieApprove${Date.now()}`;
+    const compA = await makeCompetition({
+      series: seriesName,
+      events: ["3x3", "2x2"],
+    });
+    const compB = await makeCompetition({
+      series: seriesName,
+      events: ["3x3"],
+    }); // Solo 3x3 en común
+
+    const reg = await Registration.create({
+      competition: compA._id,
+      name: "Carlos",
+      events: ["3x3", "2x2"],
+      status: "pending",
+    });
+
+    const res = await request(app)
+      .patch(`/api/registrations/${reg._id}/approve`)
+      .set("Cookie", cookie);
+    expect(res.status).toBe(200);
+
+    const mirrored = await Competitor.findOne({
+      competition: compB._id,
+      name: "Carlos",
+    });
+    expect(mirrored).not.toBeNull();
+    expect(mirrored.events).toEqual(["3x3"]); // Solo la intersección
+  });
+
+  test("no refleja en competiciones de la serie ya finalizadas", async () => {
+    const seriesName = `SerieVencida${Date.now()}`;
+    const compA = await makeCompetition({ series: seriesName });
+    const compB = await makeCompetition({
+      series: seriesName,
+      endDate: "2020-01-01",
+    });
+
+    const reg = await Registration.create({
+      competition: compA._id,
+      name: "Ana",
+      events: ["3x3"],
+      status: "pending",
+    });
+
+    await request(app)
+      .patch(`/api/registrations/${reg._id}/approve`)
+      .set("Cookie", cookie);
+
+    const mirrored = await Competitor.findOne({
+      competition: compB._id,
+      name: "Ana",
+    });
+    expect(mirrored).toBeNull();
+  });
+
+  test("aprobaciones concurrentes para la misma persona en la serie no duplican ni exceden aforo", async () => {
+    const seriesName = `SerieConcurrentes${Date.now()}`;
+    const compA = await makeCompetition({ series: seriesName });
+    const compB = await makeCompetition({
+      series: seriesName,
+      competitorLimit: 1,
+    });
+
+    const [regA, regB] = await Promise.all([
+      Registration.create({
+        competition: compA._id,
+        name: "Dup",
+        events: ["3x3"],
+        status: "pending",
+      }),
+      Registration.create({
+        competition: compB._id,
+        name: "Dup",
+        events: ["3x3"],
+        status: "pending",
+      }),
+    ]);
+
+    await Promise.all([
+      request(app)
+        .patch(`/api/registrations/${regA._id}/approve`)
+        .set("Cookie", cookie),
+      request(app)
+        .patch(`/api/registrations/${regB._id}/approve`)
+        .set("Cookie", cookie),
+    ]);
+
+    const inB = await Competitor.find({ competition: compB._id, name: "Dup" });
+    expect(inB.length).toBe(1); // No duplicado ni excede aforo
   });
 });
 

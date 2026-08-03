@@ -24,4 +24,11 @@ const userSchema = new mongoose.Schema({
   },
 });
 
+// Garantiza a nivel de BD que solo puede existir un SuperAdmin: protege /setup
+// frente a dos requests concurrentes que pasan el check "no existe admin" a la vez.
+userSchema.index(
+  { role: 1 },
+  { unique: true, partialFilterExpression: { role: "SuperAdmin" } },
+);
+
 module.exports = mongoose.model("User", userSchema);

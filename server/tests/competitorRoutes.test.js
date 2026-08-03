@@ -96,16 +96,29 @@ describe("POST /api/competitors - validaciones", () => {
       competition: comp._id,
       events: ["3x3"],
     });
-    await request(app)
+
+    const saveSpy = jest.spyOn(Competitor.prototype, "save").mockRejectedValue(
+      Object.assign(new Error("dup"), {
+        code: 11000,
+        keyPattern: { competitorNumber: 1 },
+      }),
+    );
+
+    const res = await request(app)
       .post("/api/competitors")
       .set("Cookie", cookie)
       .send({ competitionId: comp._id, name: "Otra", events: ["3x3"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Conflicto de número/);
 
     const socket = app.get("socketio");
     const emitted = socket.emit.mock.calls.filter(
       ([eventName]) => eventName === "competidor_actualizado",
     );
     expect(emitted).toHaveLength(0);
+
+    saveSpy.mockRestore();
   });
 
   test("aforo completo -> 400", async () => {
