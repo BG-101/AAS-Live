@@ -226,7 +226,7 @@ router.patch(
                 approvedAt: new Date(),
                 approvedBy: req.user?.username || "Desconocido",
               },
-              { new: true, session },
+              { returnDocument: "after", session },
             );
             if (!claimed) throw businessError("Ya aprobada.");
 
@@ -415,7 +415,7 @@ router.patch(
           rejectedBy: req.user?.username || "Desconocido",
           notes: req.body?.notes || "",
         },
-        { new: true },
+        { returnDocument: "after" },
       );
       if (!reg) {
         const exists = await Registration.exists({ _id: req.params.id });

@@ -448,7 +448,7 @@ router.put(
           locality: locality !== undefined ? locality.trim() : comp.locality,
           events: events || comp.events,
         },
-        { new: true },
+        { returnDocument: "after" },
       ).select("+birthDate");
 
       // Notifica a los clientes para que recarguen la lista de competidores
