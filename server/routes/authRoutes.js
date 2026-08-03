@@ -274,14 +274,12 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
     if (
       typeof username !== "string" ||
       typeof password !== "string" ||
-      !username.trim() ||
-      username.trim().length > 32 ||
-      !/^[a-zA-Z0-9_.-]+$/.test(username.trim()) ||
+      !isValidUsername(username.trim()) ||
       password.length < 8
     ) {
       return res.status(400).json({
         message:
-          "Usuario inválido (máx 32 caracteres, solo letras/números/._-) y contraseña mín. 8 caracteres.",
+          "Usuario inválido (máx 32 caracteres, solo letras/números/tildes/._-) y contraseña mín. 8 caracteres.",
       });
     }
     const cleanUsername = username.trim();
