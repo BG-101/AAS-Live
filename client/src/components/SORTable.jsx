@@ -14,7 +14,11 @@ import { createSocket } from "../utils/socket";
  * @param {string} compId - ID de la competición
  * @param {boolean} ageGroupsEnabled - Si true, muestra pestañas de grupos de edad
  */
-export default function SORTable({ compId, ageGroupsEnabled }) {
+export default function SORTable({
+  compId,
+  ageGroupsEnabled,
+  isRoundFinished,
+}) {
   const [activeGroup, setActiveGroup] = useState(null); // null = todos (sin filtro)
   const [sorData, setSorData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -81,7 +85,7 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
         </div>
       )}
 
-      {ageGroupsEnabled && (
+      {ageGroupsEnabled && !isRoundFinished && (
         <div className="bg-blue-50 border border-blue-300 text-blue-700 text-xs font-bold px-3 py-2 rounded mb-3">
           ℹ️ Los puntos por grupo de edad son provisionales mientras la ronda
           esté en curso; se consolidan al cerrarla.
