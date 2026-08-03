@@ -81,6 +81,13 @@ export default function SORTable({ compId, ageGroupsEnabled }) {
         </div>
       )}
 
+      {ageGroupsEnabled && (
+        <div className="bg-blue-50 border border-blue-300 text-blue-700 text-xs font-bold px-3 py-2 rounded mb-3">
+          ℹ️ Los puntos por grupo de edad son provisionales mientras la ronda
+          esté en curso; se consolidan al cerrarla.
+        </div>
+      )}
+
       {/* Pestañas de grupos de edad */}
       {ageGroupsEnabled && ageGroupsList.length > 0 && (
         <div className="flex gap-2 mb-4 flex-wrap">
