@@ -31,13 +31,13 @@ jobs:
           context: ./server
           push: true
           tags: |
-            ghcr.io/${{ github.IMAGE_NAMESPACE }}/aas-live-server:latest
-            ghcr.io/${{ github.IMAGE_NAMESPACE }}/aas-live-server:${{ github.event.release.tag_name }}
+            ghcr.io/${{ env.IMAGE_NAMESPACE }}/aas-live-server:latest
+            ghcr.io/${{ env.IMAGE_NAMESPACE }}/aas-live-server:${{ github.event.release.tag_name }}
 
       - uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.4.0
         with:
           context: ./client
           push: true
           tags: |
-            ghcr.io/${{ github.IMAGE_NAMESPACE }}/aas-live-client:latest
-            ghcr.io/${{ github.IMAGE_NAMESPACE }}/aas-live-client:${{ github.event.release.tag_name }}
+            ghcr.io/${{ env.IMAGE_NAMESPACE }}/aas-live-client:latest
+            ghcr.io/${{ env.IMAGE_NAMESPACE }}/aas-live-client:${{ github.event.release.tag_name }}
