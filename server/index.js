@@ -63,15 +63,18 @@ io.on("connection", (socket) => {
 });
 
 // ============================================================
-// CONEXIÓN A MONGODB
-// Usa la URI definida en .env para conectar a MongoDB Atlas.
+// ARRANQUE: conecta a MongoDB ANTES de aceptar tráfico HTTP/WS
 // ============================================================
-connectDB().catch((err) => {
-  console.error("❌ Error de conexión a MongoDB:", err);
-  process.exit(1);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+    server.listen(PORT, () => {
+      console.log(`🚀 Servidor protegido corriendo en puerto ${PORT}`);
+    });
+  } catch (err) {
+    console.error("❌ Error de conexión a MongoDB:", err);
+    process.exit(1);
+  }
+};
 
-// --- Inicia el servidor HTTP (que a su vez activa Socket.IO) ---
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor protegido corriendo en puerto ${PORT}`);
-});
+startServer();
