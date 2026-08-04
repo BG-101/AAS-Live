@@ -1,14 +1,14 @@
 services:
   server:
-    image: ghcr.io/<owner>/aas-live-server:latest
+    image: ghcr.io/bg-101/aas-live-server:latest
     env_file: ./server/.env
     ports: ["3001:3001"]
     restart: unless-stopped
     labels: ["com.centurylabs.watchtower.enable=true"]
 
   client:
-    image: ghcr.io/<owner>/aas-live-client:latest
-    ports: ["80:80"]
+    image: ghcr.io/bg-101/aas-live-client:latest
+    ports: ["80:8080"]
     depends_on: [server]
     restart: unless-stopped
     labels: ["com.centurylabs.watchtower.enable=true"]
