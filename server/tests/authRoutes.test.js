@@ -150,6 +150,22 @@ describe("POST /api/auth/register", () => {
     expect(created.password).not.toBe("password123"); // debe estar hasheado
   });
 
+  test("username con tildes -> 201", async () => {
+    await createUser("admin9", "adminpass1", "SuperAdmin");
+    const loginRes = await request(app)
+      .post("/api/auth/login")
+      .send({ username: "admin9", password: "adminpass1" });
+    const res = await request(app)
+      .post("/api/auth/register")
+      .set("Cookie", loginRes.headers["set-cookie"])
+      .send({
+        username: "JoséÁlvarez",
+        password: "password123",
+        role: "Delegado",
+      });
+    expect(res.status).toBe(201);
+  });
+
   test("username duplicado -> 400", async () => {
     await createUser("admin2", "adminpass1", "SuperAdmin");
     await createUser("existente", "password123", "Delegado");
