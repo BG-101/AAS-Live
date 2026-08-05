@@ -14,6 +14,10 @@ const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 const { hasReachedDate } = require("../utils/dateHelpers");
+const {
+  editWindowGuard,
+  byRegistrationId,
+} = require("../middleware/editWindow");
 
 const normalizeAge = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -209,6 +213,7 @@ router.patch(
   "/:id/approve",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byRegistrationId()),
   async (req, res) => {
     const session = await mongoose.startSession();
     try {
@@ -422,6 +427,7 @@ router.patch(
   "/:id/reject",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byRegistrationId()),
   async (req, res) => {
     try {
       const reg = await Registration.findOneAndUpdate(

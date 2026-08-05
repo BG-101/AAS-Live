@@ -24,6 +24,10 @@ const {
   getCompetitionOrFail,
   getCompetitorOrFail,
 } = require("../utils/dbHelpers");
+const {
+  editWindowGuard,
+  byBodyCompetitionId,
+} = require("../middleware/editWindow");
 
 // ============================================================
 // GET /api/results/:compId/:event/:round
@@ -93,208 +97,213 @@ router.get(
 //
 // Requiere rol SuperAdmin o Delegado.
 // ============================================================
-router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
-  // Extrae los datos del body de la petición
-  const { competitionId, competitorId, event, round, times } = req.body;
-  const roundNum = Number(round); // Asegura que sea número
+router.post(
+  "/",
+  auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byBodyCompetitionId),
+  async (req, res) => {
+    // Extrae los datos del body de la petición
+    const { competitionId, competitorId, event, round, times } = req.body;
+    const roundNum = Number(round); // Asegura que sea número
 
-  // --- Validación de tiempos ---
-  // Los tiempos deben ser un array de números, nunca menores a -2 (DNS)
-  if (
-    !Array.isArray(times) ||
-    times.some((t) => typeof t !== "number" || t < -2)
-  ) {
-    return res.status(400).json({
-      message: "Tiempos inválidos. No se permiten valores imposibles.",
-    });
-  }
+    // --- Validación de tiempos ---
+    // Los tiempos deben ser un array de números, nunca menores a -2 (DNS)
+    if (
+      !Array.isArray(times) ||
+      times.some((t) => typeof t !== "number" || t < -2)
+    ) {
+      return res.status(400).json({
+        message: "Tiempos inválidos. No se permiten valores imposibles.",
+      });
+    }
 
-  if (
-    !mongoose.Types.ObjectId.isValid(competitionId) ||
-    !mongoose.Types.ObjectId.isValid(competitorId)
-  ) {
-    return res
-      .status(400)
-      .json({ message: "ID de competición o competidor inválido." });
-  }
-
-  try {
-    const comp = await getCompetitionOrFail(competitionId, res);
-    if (!comp) return;
-
-    const competitorDoc = await getCompetitorOrFail(
-      competitorId,
-      competitionId,
-      res,
-    );
-    if (!competitorDoc) return;
-    if (!competitorDoc.events.includes(event))
+    if (
+      !mongoose.Types.ObjectId.isValid(competitionId) ||
+      !mongoose.Types.ObjectId.isValid(competitorId)
+    ) {
       return res
         .status(400)
-        .json({ message: "El competidor no está inscrito en este evento." });
-
-    const roundConfig = comp.rounds.find(
-      (r) => r.event === event && r.roundNumber === roundNum,
-    );
-    if (!roundConfig) {
-      return res.status(404).json({
-        message: "La ronda especificada no existe para este evento.",
-      });
+        .json({ message: "ID de competición o competidor inválido." });
     }
 
-    const format = roundConfig.format;
-    const { attempts: expectedLength, label: formatLabel } =
-      getRoundFormatMeta(format);
-    if (times.length !== expectedLength) {
-      return res.status(400).json({
-        message: `Formato ${formatLabel} requiere exactamente ${expectedLength} intentos.`,
-      });
-    }
-
-    const { best, average } = calculateStats(times, format);
-
-    // Result + AuditLog deben confirmarse atómicamente: si el AuditLog falla,
-    // el Result no debe quedar persistido sin su rastro de auditoría.
-    let result;
-    const session = await mongoose.startSession();
     try {
-      await session.withTransaction(async () => {
-        let existing = await Result.findOne({
-          competition: competitionId,
-          competitor: competitorId,
-          event,
-          round: roundNum,
-        }).session(session);
+      const comp = await getCompetitionOrFail(competitionId, res);
+      if (!comp) return;
 
-        let isNew = !existing;
-        let oldTimes = existing ? existing.times : null;
+      const competitorDoc = await getCompetitorOrFail(
+        competitorId,
+        competitionId,
+        res,
+      );
+      if (!competitorDoc) return;
+      if (!competitorDoc.events.includes(event))
+        return res
+          .status(400)
+          .json({ message: "El competidor no está inscrito en este evento." });
 
-        if (existing) {
-          existing.times = times;
-          existing.best = best;
-          existing.average = average;
-          await existing.save({ session });
-          result = existing;
-        } else {
-          try {
-            const created = await Result.create(
-              [
-                {
-                  competition: competitionId,
-                  competitor: competitorId,
-                  event,
-                  round: roundNum,
-                  times,
-                  best,
-                  average,
-                },
-              ],
-              { session },
-            );
-            result = created[0];
-          } catch (err) {
-            if (err.code !== 11000) throw err;
-            existing = await Result.findOne({
-              competition: competitionId,
-              competitor: competitorId,
-              event,
-              round: roundNum,
-            }).session(session);
-            if (!existing) throw err;
-            isNew = false;
-            oldTimes = existing.times;
+      const roundConfig = comp.rounds.find(
+        (r) => r.event === event && r.roundNumber === roundNum,
+      );
+      if (!roundConfig) {
+        return res.status(404).json({
+          message: "La ronda especificada no existe para este evento.",
+        });
+      }
+
+      const format = roundConfig.format;
+      const { attempts: expectedLength, label: formatLabel } =
+        getRoundFormatMeta(format);
+      if (times.length !== expectedLength) {
+        return res.status(400).json({
+          message: `Formato ${formatLabel} requiere exactamente ${expectedLength} intentos.`,
+        });
+      }
+
+      const { best, average } = calculateStats(times, format);
+
+      // Result + AuditLog deben confirmarse atómicamente: si el AuditLog falla,
+      // el Result no debe quedar persistido sin su rastro de auditoría.
+      let result;
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          let existing = await Result.findOne({
+            competition: competitionId,
+            competitor: competitorId,
+            event,
+            round: roundNum,
+          }).session(session);
+
+          let isNew = !existing;
+          let oldTimes = existing ? existing.times : null;
+
+          if (existing) {
             existing.times = times;
             existing.best = best;
             existing.average = average;
             await existing.save({ session });
             result = existing;
+          } else {
+            try {
+              const created = await Result.create(
+                [
+                  {
+                    competition: competitionId,
+                    competitor: competitorId,
+                    event,
+                    round: roundNum,
+                    times,
+                    best,
+                    average,
+                  },
+                ],
+                { session },
+              );
+              result = created[0];
+            } catch (err) {
+              if (err.code !== 11000) throw err;
+              existing = await Result.findOne({
+                competition: competitionId,
+                competitor: competitorId,
+                event,
+                round: roundNum,
+              }).session(session);
+              if (!existing) throw err;
+              isNew = false;
+              oldTimes = existing.times;
+              existing.times = times;
+              existing.best = best;
+              existing.average = average;
+              await existing.save({ session });
+              result = existing;
+            }
           }
-        }
 
-        await AuditLog.create(
-          [
-            {
-              competition: competitionId,
-              competitorName: competitorDoc?.name || "Desconocido",
-              event,
-              round: roundNum,
-              action: isNew ? "NUEVO" : "MODIFICADO",
-              oldTimes: oldTimes || [],
-              newTimes: times,
-              user: req.user?.username || "Desconocido",
-            },
-          ],
-          { session },
+          await AuditLog.create(
+            [
+              {
+                competition: competitionId,
+                competitorName: competitorDoc?.name || "Desconocido",
+                event,
+                round: roundNum,
+                action: isNew ? "NUEVO" : "MODIFICADO",
+                oldTimes: oldTimes || [],
+                newTimes: times,
+                user: req.user?.username || "Desconocido",
+              },
+            ],
+            { session },
+          );
+        });
+      } catch (err) {
+        console.error("Error guardando resultados y auditoría:", err);
+        return res
+          .status(500)
+          .json({ message: "Error interno del servidor al guardar." });
+      } finally {
+        session.endSession();
+      }
+
+      // Calcula y emite los resultados actualizados por WebSocket ANTES de responder.
+      // (Antes vivía fuera del try/catch, sin await: quedaba como trabajo en segundo
+      // plano no rastreado, causando condiciones de carrera en tests y la posibilidad
+      // de servir una respuesta HTTP inconsitente con el evento de socket emitido).
+      try {
+        const updatedResults = await Result.find({
+          competition: competitionId,
+          event,
+          round: roundNum,
+        })
+          .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
+          .lean();
+
+        const validUpdated = updatedResults.filter((r) => r.competitor != null);
+        const compForSocket = await Competition.findById(competitionId);
+        const roundConfigForSocket = compForSocket.rounds.find(
+          (r) => r.event === event && r.roundNumber === roundNum,
         );
-      });
+
+        const processedForSocket = await processAdvancements(
+          validUpdated,
+          competitionId,
+          event,
+          roundConfigForSocket,
+          roundNum,
+          compForSocket.ageGroupsEnabled || false,
+        );
+
+        const io = req.app.get("socketio");
+
+        if (io) {
+          io.emit("resultado_actualizado", {
+            competitionId,
+            event,
+            round: roundNum,
+            results: processedForSocket, // ← payload completo
+          });
+        }
+      } catch (socketErr) {
+        // Si falla el cálculo para el socket, emite sin payload como fallback
+        console.error("Error generando payload WebSocket:", socketErr);
+        const io = req.app.get("socketio");
+        if (io) {
+          io.emit("resultado_actualizado", {
+            competitionId,
+            event,
+            round: roundNum,
+          });
+        }
+      }
+
+      // Envía la respuesta HTTP para que el cliente no se quede esperando
+      res.json(result);
     } catch (err) {
-      console.error("Error guardando resultados y auditoría:", err);
+      console.error("Error guardando tiempos:", err);
       return res
         .status(500)
         .json({ message: "Error interno del servidor al guardar." });
-    } finally {
-      session.endSession();
     }
-
-    // Calcula y emite los resultados actualizados por WebSocket ANTES de responder.
-    // (Antes vivía fuera del try/catch, sin await: quedaba como trabajo en segundo
-    // plano no rastreado, causando condiciones de carrera en tests y la posibilidad
-    // de servir una respuesta HTTP inconsitente con el evento de socket emitido).
-    try {
-      const updatedResults = await Result.find({
-        competition: competitionId,
-        event,
-        round: roundNum,
-      })
-        .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
-        .lean();
-
-      const validUpdated = updatedResults.filter((r) => r.competitor != null);
-      const compForSocket = await Competition.findById(competitionId);
-      const roundConfigForSocket = compForSocket.rounds.find(
-        (r) => r.event === event && r.roundNumber === roundNum,
-      );
-
-      const processedForSocket = await processAdvancements(
-        validUpdated,
-        competitionId,
-        event,
-        roundConfigForSocket,
-        roundNum,
-        compForSocket.ageGroupsEnabled || false,
-      );
-
-      const io = req.app.get("socketio");
-
-      if (io) {
-        io.emit("resultado_actualizado", {
-          competitionId,
-          event,
-          round: roundNum,
-          results: processedForSocket, // ← payload completo
-        });
-      }
-    } catch (socketErr) {
-      // Si falla el cálculo para el socket, emite sin payload como fallback
-      console.error("Error generando payload WebSocket:", socketErr);
-      const io = req.app.get("socketio");
-      if (io) {
-        io.emit("resultado_actualizado", {
-          competitionId,
-          event,
-          round: roundNum,
-        });
-      }
-    }
-
-    // Envía la respuesta HTTP para que el cliente no se quede esperando
-    res.json(result);
-  } catch (err) {
-    console.error("Error guardando tiempos:", err);
-    return res
-      .status(500)
-      .json({ message: "Error interno del servidor al guardar." });
-  }
-});
+  },
+);
 
 module.exports = router;

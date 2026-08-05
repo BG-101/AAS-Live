@@ -13,6 +13,7 @@ const validateObjectId = require("../middleware/validateObjectId");
 const Result = require("../models/Result");
 const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
+const { editWindowGuard, byParamId } = require("../middleware/editWindow");
 
 // ============================================================
 // GET /api/competitions
@@ -179,6 +180,7 @@ router.post(
   "/:id/next-round",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, currentRoundNumber } = req.body;
     try {
@@ -245,6 +247,7 @@ router.put(
   "/:id/round-settings",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const {
       event,
@@ -296,6 +299,7 @@ router.put(
   "/:id/round-status",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, roundNumber, status } = req.body;
     try {
@@ -358,6 +362,7 @@ router.delete(
   "/:id/round-results-after",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, fromRound } = req.body;
     try {
