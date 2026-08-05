@@ -13,6 +13,7 @@ const Competition = require("../models/Competition");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
+const { hasReachedDate } = require("../utils/dateHelpers");
 
 const normalizeAge = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -58,6 +59,14 @@ router.post(
       }).select("+webhookSecret");
       if (!comp)
         return res.status(404).json({ message: "Competición no encontrada." });
+
+      if (hasReachedDate(comp.startDate)) {
+        return res.status(403).json({
+          message:
+            "El formulario de inscricpión para esta competición ha caducado.",
+        });
+      }
+
       const expected = Buffer.from(comp.webhookSecret || "");
       const provided = Buffer.from(typeof secret === "string" ? secret : "");
       if (
@@ -177,6 +186,14 @@ router.post(
     try {
       const comp = await getCompetitionOrFail(req.params.compId, res);
       if (!comp) return;
+
+      if (hasReachedDate(comp.startDate)) {
+        return res.status(403).json({
+          message:
+            "No se puede generar un nuevo secreto: la competición ya ha comenzado.",
+        });
+      }
+
       const secret = crypto.randomBytes(24).toString("hex");
       comp.webhookSecret = secret;
       await comp.save();
