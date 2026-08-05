@@ -1,3 +1,5 @@
+import { getRoundFormatMeta, shouldUseBestAsResult } from "./formatters";
+
 /**
  * Genera y descarga un CSV con los resultados de una ronda.
  *
@@ -37,7 +39,8 @@ export function exportResultsToCSV(
       `"${res.competitor.name}"`, // Comillas por si hay comas en el nombre
       res.competitor.wcaId || "",
       ...paddedTimes.map((t) => formatTime(t) || ""),
-      formatTime(roundFormat === "b" ? res.best : res.average) || "",
+      formatTime(shouldUseBestAsResult(roundFormat) ? res.best : res.average) ||
+        "",
     ];
   });
 

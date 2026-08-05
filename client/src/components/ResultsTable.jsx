@@ -8,6 +8,7 @@
 // ============================================================
 
 import React, { useState } from "react";
+import { getRoundFormatMeta, shouldUseBestAsResult } from "../utils/formatters";
 
 /**
  * @param {Array} results - Array de resultados ordenados por posición
@@ -40,10 +41,9 @@ function MobileDetailSheet({
   const paddedTimes = [...result.times];
   while (paddedTimes.length < attemptsCount) paddedTimes.push(0);
   const formattedTimes = formatWCATimesArray(paddedTimes, roundFormat);
-  const avgLabel =
-    roundFormat === "a" ? "Ao5" : roundFormat === "m" ? "Mo3" : "Best";
+  const avgLabel = getRoundFormatMeta(roundFormat).label;
   const avgValue = formatTime(
-    roundFormat === "b" ? result.best : result.average,
+    shouldUseBestAsResult(roundFormat) ? result.best : result.average,
   );
 
   return (
@@ -132,8 +132,7 @@ export default function ResultsTable({
 }) {
   const [selectedResult, setSelectedResult] = useState(null);
 
-  const avgLabel =
-    roundFormat === "a" ? "Ao5" : roundFormat === "m" ? "Mo3" : "Best";
+  const avgLabel = getRoundFormatMeta(roundFormat).label;
 
   // Calcula el rowClass
   const getRowClass = (res, posicion) => {
@@ -190,7 +189,7 @@ export default function ResultsTable({
             {results.map((res, index) => {
               const posicion = index + 1;
               const avgValue = formatTime(
-                roundFormat === "b" ? res.best : res.average,
+                shouldUseBestAsResult(roundFormat) ? res.best : res.average,
               );
               const rowClass = getRowClass(res, posicion);
 
@@ -304,7 +303,11 @@ export default function ResultsTable({
 
                   {/* Resultado final: average (Ao5/Mo3) o best (Bo3) */}
                   <td className="p-4 text-right font-black text-lg text-almeria-dark">
-                    {formatTime(roundFormat === "b" ? res.best : res.average)}
+                    {formatTime(
+                      shouldUseBestAsResult(roundFormat)
+                        ? res.best
+                        : res.average,
+                    )}
                   </td>
 
                   {isWritableAdmin && !isRoundFinished && (

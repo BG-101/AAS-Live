@@ -14,7 +14,12 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { createSocket } from "../utils/socket";
-import { formatTime, formatWCATimesArray } from "../utils/formatters";
+import {
+  formatTime,
+  formatWCATimesArray,
+  getRoundFormatMeta,
+  shouldUseBestAsResult,
+} from "../utils/formatters";
 import { API_URL } from "../utils/api";
 
 function Projector() {
@@ -222,7 +227,7 @@ function Projector() {
   const roundFormat = currentRoundObj?.format || "a";
   const isFinished = currentRoundObj?.status === "Finished";
   const isFinalRound = currentRoundObj?.advancementValue === 0;
-  const attemptsCount = roundFormat === "a" ? 5 : 3;
+  const attemptsCount = getRoundFormatMeta(roundFormat).attempts;
 
   // Estadísticas de progreso
   const participantes = competitors.length;
@@ -320,7 +325,9 @@ function Projector() {
                 </p>
                 <p className="text-3xl text-gray-400 font-mono mt-2 font-bold">
                   {formatTime(
-                    roundFormat === "b" ? silver.best : silver.average,
+                    shouldUseBestAsResult(roundFormat)
+                      ? silver.best
+                      : silver.average,
                   )}
                 </p>
               </div>
@@ -354,7 +361,11 @@ function Projector() {
                   {gold.competitor.name}
                 </p>
                 <p className="text-4xl text-gray-300 font-mono mt-2 font-bold">
-                  {formatTime(roundFormat === "b" ? gold.best : gold.average)}
+                  {formatTime(
+                    shouldUseBestAsResult(roundFormat)
+                      ? gold.best
+                      : gold.average,
+                  )}
                 </p>
               </div>
               <div
@@ -388,7 +399,9 @@ function Projector() {
                 </p>
                 <p className="text-3xl text-gray-400 font-mono mt-2 font-bold">
                   {formatTime(
-                    roundFormat === "b" ? bronze.best : bronze.average,
+                    shouldUseBestAsResult(roundFormat)
+                      ? bronze.best
+                      : bronze.average,
                   )}
                 </p>
               </div>
@@ -548,7 +561,11 @@ function Projector() {
                     </td>
                   ))}
                   <td className="py-6 text-right font-black font-mono text-3xl pr-4">
-                    {formatTime(roundFormat === "b" ? res.best : res.average)}
+                    {formatTime(
+                      shouldUseBestAsResult(roundFormat)
+                        ? res.best
+                        : res.average,
+                    )}
                   </td>
                 </tr>
               );

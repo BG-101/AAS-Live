@@ -9,6 +9,14 @@ const Competitor = require("../models/Competitor");
 const Result = require("../models/Result");
 const Competition = require("../models/Competition");
 
+const ROUND_FORMATS = {
+  a: { label: "Ao5", attempts: 5, hasAverage: true },
+  m: { label: "Mo3", attempts: 3, hasAverage: true },
+  b: { label: "Bo3", attempts: 3, hasAverage: false },
+  b5: { label: "Bo5", attempts: 5, hasAverage: false },
+};
+const getRoundFormatMeta = (format) => ROUND_FORMATS[format] || ROUND_FORMATS.a;
+
 // ============================================================
 // calculateStats(times, format)
 // Calcula el "best" (mejor tiempo) y el "average" (promedio)
@@ -74,7 +82,7 @@ const calculateStats = (times, format) => {
     // Media aritmética simple de los 3 intentos
     const sum = validTimes[0] + validTimes[1] + validTimes[2];
     average = Math.round(sum / 3);
-  } else if (format === "b") {
+  } else if (format === "b" || format === "b5") {
     // --- Bo3 (Best of 3) ---
     // No tiene average, solo se usa el best
     average = 0;
@@ -636,6 +644,8 @@ const computeAbsentScore = (isF1, maxAssignedScore) =>
   isF1 ? 0 : maxAssignedScore + 1;
 
 module.exports = {
+  ROUND_FORMATS,
+  getRoundFormatMeta,
   calculateStats,
   processAdvancements,
   sortResultsWCA,

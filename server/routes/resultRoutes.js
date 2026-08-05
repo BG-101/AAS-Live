@@ -15,7 +15,11 @@ const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
-const { calculateStats, processAdvancements } = require("../utils/wcaLogic");
+const {
+  calculateStats,
+  processAdvancements,
+  getRoundFormatMeta,
+} = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
   getCompetitorOrFail,
@@ -137,12 +141,13 @@ router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
         message: "La ronda especificada no existe para este evento.",
       });
     }
-    const format = roundConfig.format;
 
-    const expectedLength = format === "a" ? 5 : 3;
+    const format = roundConfig.format;
+    const { attempts: expectedLength, label: formatLabel } =
+      getRoundFormatMeta(format);
     if (times.length !== expectedLength) {
       return res.status(400).json({
-        message: `Formato ${format === "a" ? "Ao5" : format === "m" ? "Mo3" : "Bo3"} requiere exactamente ${expectedLength} intentos.`,
+        message: `Formato ${formatLabel} requiere exactamente ${expectedLength} intentos.`,
       });
     }
 

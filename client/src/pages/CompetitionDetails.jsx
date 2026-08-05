@@ -35,6 +35,7 @@ import {
   formatWCATimesArray,
   formatDateRange,
   resolveCompetitorAge,
+  getRoundFormatMeta,
 } from "../utils/formatters";
 
 const DEFAULT_AGE_GROUPS_CLIENT = [
@@ -450,7 +451,7 @@ function CompetitionDetails() {
   const isRoundFinished = currentRoundObj?.status === "Finished";
   const roundFormat = currentRoundObj?.format || "a"; // "a" (Ao5), "m" (Mo3), "b" (Bo3)
   const roundCutoff = currentRoundObj?.cutoff || 0; // Cutoff en centésimas
-  const attemptsCount = roundFormat === "a" ? 5 : 3; // Número de intentos según formato
+  const attemptsCount = getRoundFormatMeta(roundFormat).attempts; // Número de intentos según formato
 
   /**
    * Calcula el índice límite del cutoff:

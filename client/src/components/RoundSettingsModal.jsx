@@ -52,6 +52,7 @@ export default function RoundSettingsModal({
                 <option value="a">Ao5</option>
                 <option value="m">Mo3</option>
                 <option value="b">Bo3</option>
+                <option value="b5">Bo5</option>
               </select>
             </div>
 
