@@ -27,8 +27,8 @@ const makeCompetition = (overrides = {}) =>
   Competition.create({
     wcaId: `Comp${Date.now()}${Math.random()}`,
     name: "Test Comp",
-    startDate: "2026-06-01",
-    endDate: "2026-06-01",
+    startDate: new Date(),
+    endDate: new Date(),
     location: "Test",
     events: ["3x3"],
     competitorLimit: 50,

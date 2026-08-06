@@ -27,8 +27,8 @@ const basePayload = (overrides = {}) => ({
   wcaId: `PayloadComp${Date.now()}${Math.random()}`,
   name: "Nueva Competición",
   location: "Almería",
-  startDate: "2026-06-01",
-  endDate: "2026-06-01",
+  startDate: new Date(),
+  endDate: new Date(),
   competitorLimit: 50,
   events: ["3x3"],
   rounds: [
@@ -49,8 +49,8 @@ const makeCompetition = (overrides = {}) =>
   Competition.create({
     wcaId: `Comp${Date.now()}${Math.random()}`,
     name: "Test Comp",
-    startDate: "2026-06-01",
-    endDate: "2026-06-01",
+    startDate: new Date(),
+    endDate: new Date(),
     location: "Test",
     events: ["3x3"],
     rounds: [
