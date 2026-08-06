@@ -19,6 +19,7 @@ const {
   calculateStats,
   processAdvancements,
   getRoundFormatMeta,
+  ROUND_FORMATS,
 } = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
@@ -151,6 +152,13 @@ router.post(
       }
 
       const format = roundConfig.format;
+      if (!ROUND_FORMATS[format]) {
+        return res.status(400).json({
+          message:
+            "Formato de ronda inválido en la configuración de la competición.",
+        });
+      }
+
       const { attempts: expectedLength, label: formatLabel } =
         getRoundFormatMeta(format);
       if (times.length !== expectedLength) {
@@ -159,7 +167,32 @@ router.post(
         });
       }
 
-      const { best, average } = calculateStats(times, format);
+      // Intentos bloqueados por cutoff no superado -> DNF (-1), nunca "vacío" (0).
+      // Ao5 evalúa cutoff sobre los 2 primeros intentos; el resto sobre el 1º.
+      const cutoffLimitIndex = format === "a" ? 2 : 1;
+      const cutoff = roundConfig.cutoff || 0;
+      let normalizedTimes = [...times];
+      if (cutoff > 0) {
+        const passedCutoff = normalizedTimes
+          .slice(0, cutoffLimitIndex)
+          .some((t) => t > 0 && t < cutoff);
+        if (!passedCutoff) {
+          normalizedTimes = normalizedTimes.map((t, i) =>
+            i >= cutoffLimitIndex && t === 0 ? -1 : t,
+          );
+        }
+      }
+
+      // Un 0 fuera de contexto de cutoff = intento sin completar: no se persiste.
+      // Envita Bo3/Bo5 parciales con best>0 colándose en clasificación/avance.
+      if (normalizedTimes.includes(0)) {
+        return res.status(400).json({
+          message:
+            "No se permiten intentos vacíos. Completa todos los intentos o marca DNF/DNS.",
+        });
+      }
+
+      const { best, average } = calculateStats(normalizedTimes, format);
 
       // Result + AuditLog deben confirmarse atómicamente: si el AuditLog falla,
       // el Result no debe quedar persistido sin su rastro de auditoría.
@@ -178,7 +211,7 @@ router.post(
           let oldTimes = existing ? existing.times : null;
 
           if (existing) {
-            existing.times = times;
+            existing.times = normalizedTimes;
             existing.best = best;
             existing.average = average;
             await existing.save({ session });
@@ -192,7 +225,7 @@ router.post(
                     competitor: competitorId,
                     event,
                     round: roundNum,
-                    times,
+                    times: normalizedTimes,
                     best,
                     average,
                   },
@@ -211,7 +244,7 @@ router.post(
               if (!existing) throw err;
               isNew = false;
               oldTimes = existing.times;
-              existing.times = times;
+              existing.times = normalizedTimes;
               existing.best = best;
               existing.average = average;
               await existing.save({ session });
@@ -228,7 +261,7 @@ router.post(
                 round: roundNum,
                 action: isNew ? "NUEVO" : "MODIFICADO",
                 oldTimes: oldTimes || [],
-                newTimes: times,
+                newTimes: normalizedTimes,
                 user: req.user?.username || "Desconocido",
               },
             ],

@@ -493,11 +493,7 @@ function Projector() {
               ))}
               {/* Columna de resultado */}
               <th className="py-4 text-right pr-4 text-almeria-orange">
-                {roundFormat === "a"
-                  ? "Ao5"
-                  : roundFormat === "m"
-                    ? "Mo3"
-                    : "Single"}
+                {getRoundFormatMeta(roundFormat).label}
               </th>
             </tr>
           </thead>

@@ -12,6 +12,7 @@ const {
   calculateSOR,
   computeSeriesAgeGroupHomogeneity,
   resolveLocalAgeGroupId,
+  ageGroupSignature,
 } = require("../utils/wcaLogic");
 
 // ============================================================
@@ -61,10 +62,10 @@ router.get("/series/:seriesName", async (req, res) => {
       seriesAgeGroups,
     } = computeSeriesAgeGroupHomogeneity(competitions);
 
-    let ageGroupLabel = null;
+    let ageGroupSig = null;
     if (ageGroup && ageGroupsHomogeneus && ageGroupsSource) {
-      ageGroupLabel =
-        seriesAgeGroups.find((g) => g._id === ageGroup)?.label || null;
+      const matchedGroup = seriesAgeGroups.find((g) => g._id === ageGroup);
+      ageGroupSig = matchedGroup ? ageGroupSignature(matchedGroup) : null;
     }
 
     // Calcula SOR individual de cada competición
@@ -73,7 +74,7 @@ router.get("/series/:seriesName", async (req, res) => {
         comp,
         sor: await calculateSOR(
           comp._id.toString(),
-          resolveLocalAgeGroupId(comp, ageGroupLabel),
+          resolveLocalAgeGroupId(comp, ageGroupSig),
         ),
       })),
     );

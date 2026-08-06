@@ -14,6 +14,7 @@ const Result = require("../models/Result");
 const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 const { editWindowGuard, byParamId } = require("../middleware/editWindow");
+const { ROUND_FORMATS } = require("../utils/wcaLogic");
 
 // ============================================================
 // GET /api/competitions
@@ -129,6 +130,13 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
       .json({ message: "Debes incluir al menos 1 evento." });
   if (!Array.isArray(rounds) || rounds.length === 0)
     return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
+
+  const invalidFormatRound = rounds.find((r) => !ROUND_FORMATS[r.format]);
+  if (invalidFormatRound)
+    return res.status(400).json({
+      message: `Formato de ronda inválido: "${invalidFormatRound.format}".`,
+    });
+
   if (
     competitorLimit !== undefined &&
     (isNaN(competitorLimit) || Number(competitorLimit) <= 0)
@@ -267,14 +275,19 @@ router.put(
       );
 
       if (roundIndex !== -1) {
+        const resolvedFormat = format || "a";
+        if (!ROUND_FORMATS[resolvedFormat])
+          return res
+            .status(400)
+            .json({ message: `Formato de ronda inválido: "${format}".` });
+
         // Actualiza los campos de configuración
         comp.rounds[roundIndex].advancementType = advancementType;
         comp.rounds[roundIndex].advancementValue = advancementValue;
-        comp.rounds[roundIndex].format = format || "a";
+        comp.rounds[roundIndex].format = resolvedFormat;
         comp.rounds[roundIndex].cutoff = cutoff || 0;
 
         await comp.save();
-
         // Notifica a los clientes conectados
         req.app.get("socketio").emit("competicion_actualizada", req.params.id);
         res.json(comp);

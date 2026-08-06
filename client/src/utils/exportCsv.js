@@ -16,9 +16,8 @@ export function exportResultsToCSV(
   roundFormat,
   formatTime,
 ) {
-  const avgLabel =
-    roundFormat === "a" ? "Ao5" : roundFormat === "m" ? "Mo3" : "Best";
-  const attemptsCount = roundFormat === "a" ? 5 : 3;
+  const { label: avgLabel, attempts: attemptsCount } =
+    getRoundFormatMeta(roundFormat);
 
   // Cabecera
   const headers = [

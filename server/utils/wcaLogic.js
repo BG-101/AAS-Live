@@ -376,29 +376,30 @@ const resolveAgeGroups = (comp) => {
 };
 
 /**
+ * Firma única de un grupo de edad (label + rango). Desambigua grupos
+ * personalizados que comparan label pero difieren en el rango de edad.
+ */
+const ageGroupSignature = (group) =>
+  `g${group.label.trim().toLowerCase()}|${group.minAge ?? ""}|${group.maxAge ?? ""}`;
+
+/**
  * Calcula homogeneidad de grupos de edad entre las competiciones de una serie.
  */
 const computeSeriesAgeGroupHomogeneity = (competitions) => {
   const ageGroupsEnabledComps = competitions.filter((c) => c.ageGroupsEnabled);
   const ageGroupsEnabled = ageGroupsEnabledComps.length > 0;
 
-  const groupSignature = (comp) =>
-    resolveAgeGroups(comp)
-      .map(
-        (g) =>
-          `${g.label.trim().toLowerCase()}|${g.minAge ?? ""}|${g.maxAge ?? ""}`,
-      )
-      .sort()
-      .join(",");
+  const compSignature = (comp) =>
+    resolveAgeGroups(comp).map(ageGroupSignature).sort().join(",");
 
   let ageGroupsHomogeneus = true;
   if (ageGroupsEnabled) {
     if (ageGroupsEnabledComps.length !== competitions.length) {
       ageGroupsHomogeneus = false;
     } else if (ageGroupsEnabledComps.length > 1) {
-      const signature = groupSignature(ageGroupsEnabledComps[0]);
+      const signature = compSignature(ageGroupsEnabledComps[0]);
       ageGroupsHomogeneus = ageGroupsEnabledComps.every(
-        (c) => groupSignature(c) === signature,
+        (c) => compSignature(c) === signature,
       );
     }
   }
@@ -418,15 +419,15 @@ const computeSeriesAgeGroupHomogeneity = (competitions) => {
 };
 
 /**
- * Traduce un label de grupo de edad de la serie al _id local de una competición.
+ * Resuelve el _id local de un grupo de edad a partir de su firma completa
+ * (no solo el label), evitando colisiones entre grupos con nombres repetidos.
  */
-const resolveLocalAgeGroupId = (comp, label) => {
-  if (!label || !comp.ageGroupsEnabled) return null;
+const resolveLocalAgeGroupId = (comp, signature) => {
+  if (!signature || !comp.ageGroupsEnabled) return null;
   const normalizedTarget = label.trim().toLowerCase();
   return (
-    resolveAgeGroups(comp).find(
-      (g) => g.label.trim().toLowerCase() === normalizedTarget,
-    )?._id || null
+    resolveAgeGroups(comp).find((g) => ageGroupSignature(g) === signature)
+      ?._id || null
   );
 };
 
@@ -652,6 +653,7 @@ module.exports = {
   calculateSOR,
   DEFAULT_AGE_GROUPS,
   resolveAgeGroups,
+  ageGroupSignature,
   computeSeriesAgeGroupHomogeneity,
   resolveLocalAgeGroupId,
   getAgeAtDate,
