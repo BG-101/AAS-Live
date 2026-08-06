@@ -10,13 +10,13 @@ const EDIT_WINDOW_DAYS = parsePositiveInt(
 );
 
 const editWindowGuard = (resolveCompetition) => async (req, res, next) => {
-  if (req?.role === "SuperAdmin") return next();
+  if (req.user?.role === "SuperAdmin") return next();
   try {
     const comp = await resolveCompetition(req);
     if (!comp) return next(); // Deja que la ruta gestione el 400/404
     if (daysElapsedSince(comp.endDate) > EDIT_WINDOW_DAYS) {
       return res.status(403).json({
-        message: `Esta competición finalizó hace más de ${EDIT_WINDOW_DAYS} días(s). Solo un SuperAdmin puede modificarla ya.`,
+        message: `Esta competición finalizó hace más de ${EDIT_WINDOW_DAYS} día(s). Solo un SuperAdmin puede modificarla ya.`,
       });
     }
     next();

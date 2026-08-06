@@ -67,7 +67,7 @@ router.post(
       if (hasReachedDate(comp.startDate)) {
         return res.status(403).json({
           message:
-            "El formulario de inscricpión para esta competición ha caducado.",
+            "El formulario de inscripción para esta competición ha caducado.",
         });
       }
 
