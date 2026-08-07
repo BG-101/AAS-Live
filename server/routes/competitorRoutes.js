@@ -132,6 +132,30 @@ router.get(
 );
 
 // ============================================================
+// GET /api/competitors/:compId/full
+// Igual que GET /:compId pero incluye birthDate. Solo para el
+// editor de competidores (SuperAdmin/Delegado).
+// ============================================================
+router.get(
+  "/:compId/full",
+  validateObjectId("compId"),
+  auth(["SuperAdmin", "Delegado"]),
+  async (req, res) => {
+    try {
+      const competitors = await Competitor.find({
+        competition: req.params.compId,
+        isDeleted: { $ne: true },
+      })
+        .select("+birthDate")
+        .lean();
+      res.json(competitors);
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
+
+// ============================================================
 // POST /api/competitors
 // Inscribe un nuevo competidor en una competición.
 //

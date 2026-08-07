@@ -35,7 +35,7 @@ export default function CompetitorEditorModal({
     if (!show || !competitionId) return;
     setLoading(true);
     axios
-      .get(`${API_URL}/api/competitors/${competitionId}`)
+      .get(`${API_URL}/api/competitors/${competitionId}/full`)
       .then((res) => {
         // Ordena por número de competidor
         const sorted = res.data.sort(

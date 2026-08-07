@@ -766,6 +766,13 @@ function CompetitionDetails() {
     return 0;
   }, [currentRoundObj, participantes]);
 
+  const sorRoundsFinished = useMemo(() => {
+    if (!competition) return false;
+    return competition.events.every((ev) =>
+      competition.rounds.some((r) => r.event === ev && r.status === "Finished"),
+    );
+  }, [competition]);
+
   // ============================================================
   // PANTALLA DE CARGA
   // ============================================================
@@ -1202,7 +1209,7 @@ function CompetitionDetails() {
               <SORTable
                 compId={compId}
                 ageGroupsEnabled={competition.ageGroupsEnabled}
-                isRoundFinished={isRoundFinished}
+                isRoundFinished={sorRoundsFinished}
               />
             </div>
           ) : (
