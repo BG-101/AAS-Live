@@ -389,6 +389,22 @@ router.delete(
         round: { $gt: fromRound },
       });
 
+      // Las rondas posteriores quedan vacías: si estaban "Finished" su estado
+      // ya no refleja la realidad (avances/SOR calculados sobre datos borrados).
+      // Se reabren para forzar su recomputo antes de poder volver a cerrarlas.
+      let reopenedAny = false;
+      comp.rounds.forEach((r) => {
+        if (
+          r.event === event &&
+          r.roundNumber > fromRound &&
+          r.status === "Finished"
+        ) {
+          r.status === "In Progress";
+          reopenedAny = true;
+        }
+      });
+      if (reopenedAny) await comp.save();
+
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {

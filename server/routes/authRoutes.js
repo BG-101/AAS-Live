@@ -220,7 +220,7 @@ router.post("/setup", async (req, res) => {
     const usernameToken = await User.findOne({ username: defaultUsername });
     if (usernameToken) {
       return res.status(500).json({
-        message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) y existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
+        message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) ya existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
       });
     }
 

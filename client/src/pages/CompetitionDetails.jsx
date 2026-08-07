@@ -677,7 +677,7 @@ function CompetitionDetails() {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
       }
     } else {
-      if (!window.confirm("¿Marcar como FINALIADA?")) return;
+      if (!window.confirm("¿Marcar como FINALIZADA?")) return;
     }
 
     try {
@@ -1261,7 +1261,7 @@ function CompetitionDetails() {
                   </button>
                 )}
 
-                {/* Botón exportar CSV - visible para todos cuand hay resultados */}
+                {/* Botón exportar CSV - visible para todos cuando hay resultados */}
                 {displayResults.length > 0 && (
                   <button
                     onClick={() =>
