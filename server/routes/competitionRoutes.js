@@ -15,6 +15,7 @@ const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 const { editWindowGuard, byParamId } = require("../middleware/editWindow");
 const { ROUND_FORMATS } = require("../utils/wcaLogic");
+const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
 // GET /api/competitions
@@ -33,7 +34,7 @@ router.get("/", async (req, res) => {
       });
     res.json(competitions);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -70,7 +71,7 @@ router.get("/by-wca/:wcaId", async (req, res) => {
 
     res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -98,7 +99,7 @@ router.get("/:id", validateObjectId(), async (req, res) => {
 
     res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -239,7 +240,7 @@ router.post(
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json(comp);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -295,7 +296,7 @@ router.put(
         res.status(404).json({ message: "Ronda no encontrada" });
       }
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -335,7 +336,7 @@ router.put(
         res.status(404).json({ message: "Ronda no encontrada" });
       }
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -360,7 +361,7 @@ router.delete(
 
       res.json({ message: "Competición movida a la papelera (Soft Delete)" });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -391,7 +392,7 @@ router.delete(
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );

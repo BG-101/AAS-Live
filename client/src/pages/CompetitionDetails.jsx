@@ -1287,7 +1287,7 @@ function CompetitionDetails() {
                 attemptsCount={attemptsCount}
                 roundFormat={roundFormat}
                 isRoundFinished={isRoundFinished}
-                isFinalRound={parseInt(currentRoundObj?.advancementValue) === 0}
+                isFinalRound={Number(currentRoundObj?.advancementValue) === 0}
                 faltantes={faltantes}
                 participantesQueClasifican={participantesQueClasifican}
                 selectedRound={selectedRound}

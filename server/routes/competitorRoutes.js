@@ -22,6 +22,7 @@ const {
   byBodyCompetitionId,
   byCompetitorId,
 } = require("../middleware/editWindow");
+const { sendServerError } = require("../utils/errorResponse");
 
 const sanitizeCompetitorPayload = (competitor) => {
   if (!competitor) return competitor;
@@ -43,7 +44,7 @@ router.get("/:compId", validateObjectId("compId"), async (req, res) => {
     }).lean();
     res.json(competitors.map(sanitizeCompetitorPayload));
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -126,7 +127,7 @@ router.get(
 
       res.json(eligibleCompetitors);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -150,7 +151,7 @@ router.get(
         .lean();
       res.json(competitors);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -387,7 +388,7 @@ router.delete(
 
       res.json({ message: "Competidor movido a la papelera" });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -432,7 +433,7 @@ router.delete(
         message: `Papelera vaciada. ${deletedCount.deletedCount} competidores eliminados físicamente.`,
       });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -496,7 +497,7 @@ router.put(
 
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -545,7 +546,7 @@ router.patch(
 
       res.json(comp);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );

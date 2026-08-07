@@ -424,7 +424,6 @@ const computeSeriesAgeGroupHomogeneity = (competitions) => {
  */
 const resolveLocalAgeGroupId = (comp, signature) => {
   if (!signature || !comp.ageGroupsEnabled) return null;
-  const normalizedTarget = label.trim().toLowerCase();
   return (
     resolveAgeGroups(comp).find((g) => ageGroupSignature(g) === signature)
       ?._id || null

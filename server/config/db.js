@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const logger = require("../utils/logger");
 
 const buildConnectionOptions = () => {
   const opts = {};
@@ -20,17 +21,17 @@ const connectDB = async () => {
   }
 
   mongoose.connection.on("error", (err) =>
-    console.error("❌ Error de conexión a MongoDB:", err),
+    logger.error({ err }, "Error de conexión a MongoDB"),
   );
   mongoose.connection.on("disconnected", () =>
-    console.warn("⚠️ MongoDB desconectado."),
+    logger.warn("MongoDB desconectado"),
   );
 
   await mongoose.connect(process.env.MONGO_URI, buildConnectionOptions());
   const target = process.env.MONGO_URI.includes("mongodb+srv")
     ? "Atlas"
     : "on-premise / self-hosted";
-  console.log(`✅ Conectado a MongoDB (${target})`);
+  logger.info({ target }, "Conectado a MongoDB");
 };
 
 module.exports = { connectDB };

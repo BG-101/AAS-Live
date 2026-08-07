@@ -269,6 +269,9 @@ export default function RegistrationPanel({
               </p>
               <pre className="bg-gray-900 text-green-300 text-[10px] rounded p-2 overflow-x-auto whitespace-pre-wrap select-all">
                 {`function onFormSubmit(e) {
+  // Nota: "var" es intencional aquí (no un descuido) - es el estilo
+  // predominante en la documentación y ejemplos oficiales de Google Apps
+  // Script; let/const también funcionan en el runtime V8 moderno.
   var WEBHOOK_URL = "${webhookUrl}";
   var SECRET = "TU_SECRETO_AQUI";
   

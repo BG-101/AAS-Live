@@ -19,6 +19,7 @@ const { connectDB } = require("./config/db");
 const http = require("http"); // Servidor HTTP nativo (necesario para Socket.IO)
 const { Server } = require("socket.io"); // WebSockets para actualizaciones en tiempo real
 const createApp = require("./app");
+const logger = require("./utils/logger");
 
 // --- Creación de la aplicación Express ---
 const app = createApp();
@@ -53,13 +54,10 @@ app.set("socketio", io);
 
 // Escucha conexiones/desconexiones de clientes WebSocket
 io.on("connection", (socket) => {
-  console.log(
-    `📡 Un espectador/admin se ha conectado en vivo (ID: ${socket.id})`,
+  logger.info({ socketId: socket.id }, "Cliente WebSocket conectado");
+  socket.on("disconnect", () =>
+    logger.info({ socketId: socket.id }, "Cliente WebSocket desconectado"),
   );
-
-  socket.on("disconnect", () => {
-    console.log(`🔌 Espectador desconectado (ID: ${socket.id})`);
-  });
 });
 
 // ============================================================
@@ -68,11 +66,9 @@ io.on("connection", (socket) => {
 const startServer = async () => {
   try {
     await connectDB();
-    server.listen(PORT, () => {
-      console.log(`🚀 Servidor protegido corriendo en puerto ${PORT}`);
-    });
+    server.listen(PORT, () => logger.info({ port: PORT }, "Servidor iniciado"));
   } catch (err) {
-    console.error("❌ Error de conexión a MongoDB:", err);
+    logger.error({ err }, "Error de conexión a MongoDB");
     process.exit(1);
   }
 };

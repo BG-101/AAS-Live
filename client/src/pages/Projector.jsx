@@ -132,7 +132,7 @@ function Projector() {
       (r) => r.event === event && r.roundNumber === roundNum,
     );
     const isFinished = currentRoundObj?.status === "Finished";
-    const isFinalRound = parseInt(currentRoundObj?.advancementValue) === 0;
+    const isFinalRound = Number(currentRoundObj?.advancementValue) === 0;
 
     if (viewMode === "podium" && isFinished && isFinalRound) {
       const timer = setTimeout(() => {
@@ -174,8 +174,7 @@ function Projector() {
             (r) => r.event === event && r.roundNumber === roundNum,
           );
           const isFinished = currentRoundObj?.status === "Finished";
-          const isFinalRound =
-            parseInt(currentRoundObj?.advancementValue) === 0;
+          const isFinalRound = Number(currentRoundObj?.advancementValue) === 0;
 
           if (isFinished && isFinalRound) {
             // Ronda final cerrada: muestra el podio
@@ -226,7 +225,7 @@ function Projector() {
   );
   const roundFormat = currentRoundObj?.format || "a";
   const isFinished = currentRoundObj?.status === "Finished";
-  const isFinalRound = currentRoundObj?.advancementValue === 0;
+  const isFinalRound = Number(currentRoundObj?.advancementValue) === 0;
   const attemptsCount = getRoundFormatMeta(roundFormat).attempts;
 
   // Estadísticas de progreso

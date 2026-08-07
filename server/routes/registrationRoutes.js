@@ -18,6 +18,7 @@ const {
   editWindowGuard,
   byRegistrationId,
 } = require("../middleware/editWindow");
+const { sendServerError } = require("../utils/errorResponse");
 
 const normalizeAge = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -129,7 +130,7 @@ router.post(
         ?.emit("nueva_inscripcion", { competitionId: req.params.compId });
       res.status(201).json(reg);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -176,7 +177,7 @@ router.post(
         ?.emit("nueva_inscripcion", { competitionId: req.params.compId });
       res.status(201).json(reg);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -203,7 +204,7 @@ router.post(
       await comp.save();
       res.json({ secret });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -414,8 +415,7 @@ router.patch(
         competitor: newCompetitor,
       });
     } catch (err) {
-      console.error("Error en /approve:", err);
-      res.status(err.status === 400 ? 400 : 500).json({ message: err.message });
+      sendServerError(res, err, { status: err.status === 400 ? 400 : 500 });
     } finally {
       session.endSession();
     }
@@ -452,7 +452,7 @@ router.patch(
       res.json(reg);
     } catch (err) {
       console.error("Error en /reject:", err);
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -468,7 +468,7 @@ router.delete(
       if (!deleted) return res.status(404).json({ message: "No encontrada." });
       res.json({ message: "Eliminada." });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );

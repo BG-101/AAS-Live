@@ -1,6 +1,6 @@
 // ============================================================
-// M?DULO: jest.config
-// Agrupa la l?gica principal de este archivo.
+// MÓDULO: jest.config
+// Agrupa la lógica principal de este archivo.
 // ============================================================
 
 module.exports = {

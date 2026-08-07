@@ -22,6 +22,7 @@ const {
   parsePositiveInt,
   MAX_SAFE_TIMEOUT_MS,
 } = require("./utils/parseEnvInt");
+const logger = require("./utils/logger");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -69,7 +70,7 @@ const createApp = () => {
         .status(400)
         .json({ message: "JSON inválido en el cuerpo de la petición." });
     }
-    console.error(err);
+    logger.error({ err }, "Unhandled error");
     res.status(500).json({ message: "Error interno del servidor." });
   });
 

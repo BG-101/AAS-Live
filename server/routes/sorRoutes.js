@@ -14,6 +14,7 @@ const {
   resolveLocalAgeGroupId,
   ageGroupSignature,
 } = require("../utils/wcaLogic");
+const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
 // GET /api/sor/series/:seriesName
@@ -144,7 +145,7 @@ router.get("/series/:seriesName", async (req, res) => {
       scoringSystem: competitions[0]?.scoringSystem || "sor",
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -160,7 +161,7 @@ router.get("/:compId", validateObjectId("compId"), async (req, res) => {
     const data = await calculateSOR(req.params.compId, ageGroup || null);
     res.json(data);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
