@@ -19,6 +19,13 @@ const isEditWindowOpen = (comp, userRole) => {
   return daysElapsedSince(comp.endDate) <= EDIT_WINDOW_DAYS;
 };
 
+/**
+ * Middleware factory: bloquea mutaciones sobre una competición si han pasado
+ * más de EDIT_WINDOW_DAYS desde su endDate y el usuario no es SuperAdmin.
+ * @param {(req: import('express').Request) => Promise<import('mongoose').Document|null>} resolveCompetition
+ *  Función que resuelve el documento Competition relevante a partir del request
+ * @returns {import('express').RequestHandler}
+ */
 const editWindowGuard = (resolveCompetition) => async (req, res, next) => {
   if (req.user?.role === "SuperAdmin") return next();
   try {
@@ -30,7 +37,7 @@ const editWindowGuard = (resolveCompetition) => async (req, res, next) => {
       });
     }
     next();
-  } catch {
+  } catch (err) {
     // ID ya validado por validateObjectId: un fallo aquí es un error real
     // (DB, etc.), no un ID malformado. Falla cerrado, no en abierto.
     sendServerError(res, err);

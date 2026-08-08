@@ -133,11 +133,14 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
     return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
 
   const invalidFormatRound = rounds.find(
-    (r) => !Object.hasOwn(ROUND_FORMATS, r.format),
+    (r) =>
+      !r ||
+      typeof r.format !== "string" ||
+      !Object.hasOwn(ROUND_FORMATS, r.format),
   );
   if (invalidFormatRound)
     return res.status(400).json({
-      message: `Formato de ronda inválido: "${invalidFormatRound.format}".`,
+      message: `Formato de ronda inválido: "${invalidFormatRound?.format}".`,
     });
 
   if (
@@ -368,12 +371,16 @@ router.delete(
   },
 );
 
-// ============================================================
-// DELETE /api/competitions/:id/round-results-after
-// Elimina los resultados de todas las rondas posteriores a
-// roundNumber para un evento dado. Se llama cuando el admin
-// reabre una ronda y confirma que quiere limpiar datos inconsistentes.
-// ============================================================
+/**
+ * DELETE /api/competitions/:id/round-results-after
+ * Elimina los resultados de un evento en todas las rondas posteriores que estuviera
+ * Finished, ya que sus resultados quedaron borrados. Operación atómica
+ * (transacción): si el guardado de la competición falla, el borrado de
+ * resultados se revierte.
+ * @param {string} req.params.id - ID de la competición
+ * @param {string} req.body.event - Evento a limpiar (debe existir en comp.events)
+ * @param {number} req.body.fromRound - Ronda a partir de la cual se borra (exclusive)
+ */
 router.delete(
   "/:id/round-results-after",
   validateObjectId(),
@@ -381,6 +388,15 @@ router.delete(
   editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, fromRound } = req.body;
+
+    if (typeof event !== "string" || event.trim() === "") {
+      return res.status(400).json({ message: "event inválido." });
+    }
+    const parsedFromRound = Number(fromRound);
+    if (!Number.isInteger(parsedFromRound) || parsedFromRound < 0) {
+      return res.status(400).json({ message: "fromRound inválido." });
+    }
+
     const session = await mongoose.startSession();
     try {
       const comp = await Competition.findOne({
@@ -390,16 +406,27 @@ router.delete(
       if (!comp)
         return res.status(404).json({ message: "Competición no encontrada." });
 
+      if (!comp.events.includes(event)) {
+        return res
+          .status(400)
+          .json({ message: "Evento no pertenece a esta competición." });
+      }
+
       let reopenedAny = false;
       await session.withTransaction(async () => {
         await Result.deleteMany(
-          { competition: req.params.id, event, round: { $gt: fromRound } },
+          {
+            competition: req.params.id,
+            event,
+            round: { $gt: parsedFromRound },
+          },
           { session },
         );
+
         comp.rounds.forEach((r) => {
           if (
             r.event === event &&
-            r.roundNumber > fromRound &&
+            r.roundNumber > parsedFromRound &&
             r.status === "Finished"
           ) {
             r.status = "In Progress";
