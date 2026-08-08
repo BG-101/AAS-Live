@@ -21,6 +21,7 @@ import {
   shouldUseBestAsResult,
 } from "../utils/formatters";
 import { API_URL } from "../utils/api";
+import { toast } from "../utils/toast";
 
 function Projector() {
   // Parámetros de la URL: /projector/:id/:event/:round
@@ -57,7 +58,13 @@ function Projector() {
     axios
       .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
       .then((res) => setCompetition(res.data))
-      .catch(console.error);
+      .catch((err) => {
+        (console.error(err),
+          toast(
+            "No se pudo cargar la competición para el proyector.",
+            "error",
+          ));
+      });
   }, [wcaId, refreshTrigger]);
 
   // ============================================================
@@ -69,7 +76,10 @@ function Projector() {
     axios
       .get(`${API_URL}/api/results/${compId}/${event}/${roundNum}`)
       .then((res) => setResults(res.data))
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        console.error(err);
+        toast("Error al cargar los resultados en vivo.", "error");
+      });
   }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================
@@ -81,7 +91,10 @@ function Projector() {
     axios
       .get(`${API_URL}/api/competitors/${compId}/eligible/${event}/${roundNum}`)
       .then((res) => setCompetitors(res.data))
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        toast("Error al cargar los competidores elegibles.", "error");
+      });
   }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================

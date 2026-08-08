@@ -50,4 +50,9 @@ resultSchema.index(
 // Índice para buscar todos los resultados de un competidor (auditoría, borrado)
 resultSchema.index({ competitor: 1 });
 
+// Acelera GET /results/:compId/:event/:round, getEligibleCount y
+// processAdvancements: consultas exactas por competition+event+round
+// sin depender del prefijo competitor del índice único de arriba.
+resultSchema.index({ competition: 1, event: 1, round: 1 });
+
 module.exports = mongoose.model("Result", resultSchema);

@@ -3,7 +3,7 @@
 // Renderiza la interfaz y la l?gica de este componente.
 // ============================================================
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
@@ -51,7 +51,7 @@ export default function RegistrationPanel({
 
   const webhookUrl = `${API_URL || window.location.origin}/api/registrations/webhook/${competitionId}`;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await axios.get(
@@ -63,11 +63,11 @@ export default function RegistrationPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [competitionId]);
 
   useEffect(() => {
     if (show) load();
-  }, [show]);
+  }, [show, load]);
 
   if (!show) return null;
 
