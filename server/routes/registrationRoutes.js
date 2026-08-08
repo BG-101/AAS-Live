@@ -13,6 +13,13 @@ const Competition = require("../models/Competition");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
+const { hasReachedDate } = require("../utils/dateHelpers");
+const {
+  editWindowGuard,
+  byRegistrationId,
+  byParamId,
+} = require("../middleware/editWindow");
+const { sendServerError } = require("../utils/errorResponse");
 
 const normalizeAge = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -58,6 +65,14 @@ router.post(
       }).select("+webhookSecret");
       if (!comp)
         return res.status(404).json({ message: "Competición no encontrada." });
+
+      if (hasReachedDate(comp.startDate)) {
+        return res.status(403).json({
+          message:
+            "El formulario de inscripción para esta competición ha caducado.",
+        });
+      }
+
       const expected = Buffer.from(comp.webhookSecret || "");
       const provided = Buffer.from(typeof secret === "string" ? secret : "");
       if (
@@ -116,7 +131,7 @@ router.post(
         ?.emit("nueva_inscripcion", { competitionId: req.params.compId });
       res.status(201).json(reg);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -126,6 +141,7 @@ router.post(
   "/manual/:compId",
   validateObjectId("compId"),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId("compId")),
   async (req, res) => {
     try {
       const { name, wcaId, age, birthDate, locality, email, events } = req.body;
@@ -163,7 +179,7 @@ router.post(
         ?.emit("nueva_inscripcion", { competitionId: req.params.compId });
       res.status(201).json(reg);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -177,12 +193,20 @@ router.post(
     try {
       const comp = await getCompetitionOrFail(req.params.compId, res);
       if (!comp) return;
+
+      if (hasReachedDate(comp.startDate)) {
+        return res.status(403).json({
+          message:
+            "No se puede generar un nuevo secreto: la competición ya ha comenzado.",
+        });
+      }
+
       const secret = crypto.randomBytes(24).toString("hex");
       comp.webhookSecret = secret;
       await comp.save();
       res.json({ secret });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -192,6 +216,7 @@ router.patch(
   "/:id/approve",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byRegistrationId()),
   async (req, res) => {
     const session = await mongoose.startSession();
     try {
@@ -392,8 +417,13 @@ router.patch(
         competitor: newCompetitor,
       });
     } catch (err) {
-      console.error("Error en /approve:", err);
-      res.status(err.status === 400 ? 400 : 500).json({ message: err.message });
+      if (err.code === 11000 && err.keyPattern?.name) {
+        return res.status(409).json({
+          message:
+            "Conflicto al aprobar: ya existe un competidor con ese nombre en esta competición. Reintenta.",
+        });
+      }
+      sendServerError(res, err, { status: err.status === 400 ? 400 : 500 });
     } finally {
       session.endSession();
     }
@@ -405,6 +435,7 @@ router.patch(
   "/:id/reject",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byRegistrationId()),
   async (req, res) => {
     try {
       const reg = await Registration.findOneAndUpdate(
@@ -429,7 +460,7 @@ router.patch(
       res.json(reg);
     } catch (err) {
       console.error("Error en /reject:", err);
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -445,7 +476,7 @@ router.delete(
       if (!deleted) return res.status(404).json({ message: "No encontrada." });
       res.json({ message: "Eliminada." });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );

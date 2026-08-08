@@ -7,13 +7,15 @@
 import React from "react";
 
 /**
- * @param {boolean} show - Si es true, muestra el modal
- * @param {Function} onClose - Callback para cerrar el modal
- * @param {Object} settingsData - Estado del formulario { type, value, format, cutoff }
- * @param {Function} setSettingsData - Setter del estado del formulario
- * @param {Function} onSubmit - Callback al enviar (guarda la configuración)
- * @param {number} selectedRound - Número de la ronda seleccionada (para mostrar en el título)
- * @param {string} selectedEvent - Evento seleccionado (para mostrar en el título)
+ * Displays a modal for configuring the selected round.
+ * @param {boolean} show - Whether the modal is visible.
+ * @param {Function} onClose - Callback invoked when the modal is canceled.
+ * @param {Object} settingsData - Current round settings, including format, cutoff, classification type, and cutoff value.
+ * @param {Function} setSettingsData - Updates the round settings.
+ * @param {Function} onSubmit - Callback invoked when the form is submitted.
+ * @param {number} selectedRound - Round number displayed in the modal title.
+ * @param {string} selectedEvent - Event name displayed in the modal title.
+ * @returns {JSX.Element|null} The settings modal when visible, or `null` otherwise.
  */
 export default function RoundSettingsModal({
   show,
@@ -52,6 +54,7 @@ export default function RoundSettingsModal({
                 <option value="a">Ao5</option>
                 <option value="m">Mo3</option>
                 <option value="b">Bo3</option>
+                <option value="b5">Bo5</option>
               </select>
             </div>
 

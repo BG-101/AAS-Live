@@ -9,6 +9,14 @@ const Competitor = require("../models/Competitor");
 const Result = require("../models/Result");
 const Competition = require("../models/Competition");
 
+const ROUND_FORMATS = {
+  a: { label: "Ao5", attempts: 5, hasAverage: true },
+  m: { label: "Mo3", attempts: 3, hasAverage: true },
+  b: { label: "Bo3", attempts: 3, hasAverage: false },
+  b5: { label: "Bo5", attempts: 5, hasAverage: false },
+};
+const getRoundFormatMeta = (format) => ROUND_FORMATS[format] || ROUND_FORMATS.a;
+
 // ============================================================
 // calculateStats(times, format)
 // Calcula el "best" (mejor tiempo) y el "average" (promedio)
@@ -74,7 +82,7 @@ const calculateStats = (times, format) => {
     // Media aritmética simple de los 3 intentos
     const sum = validTimes[0] + validTimes[1] + validTimes[2];
     average = Math.round(sum / 3);
-  } else if (format === "b") {
+  } else if (format === "b" || format === "b5") {
     // --- Bo3 (Best of 3) ---
     // No tiene average, solo se usa el best
     average = 0;
@@ -368,6 +376,61 @@ const resolveAgeGroups = (comp) => {
 };
 
 /**
+ * Firma única de un grupo de edad (label + rango). Desambigua grupos
+ * personalizados que comparan label pero difieren en el rango de edad.
+ */
+const ageGroupSignature = (group) =>
+  `g${group.label.trim().toLowerCase()}|${group.minAge ?? ""}|${group.maxAge ?? ""}`;
+
+/**
+ * Calcula homogeneidad de grupos de edad entre las competiciones de una serie.
+ */
+const computeSeriesAgeGroupHomogeneity = (competitions) => {
+  const ageGroupsEnabledComps = competitions.filter((c) => c.ageGroupsEnabled);
+  const ageGroupsEnabled = ageGroupsEnabledComps.length > 0;
+
+  const compSignature = (comp) =>
+    resolveAgeGroups(comp).map(ageGroupSignature).sort().join(",");
+
+  let ageGroupsHomogeneus = true;
+  if (ageGroupsEnabled) {
+    if (ageGroupsEnabledComps.length !== competitions.length) {
+      ageGroupsHomogeneus = false;
+    } else if (ageGroupsEnabledComps.length > 1) {
+      const signature = compSignature(ageGroupsEnabledComps[0]);
+      ageGroupsHomogeneus = ageGroupsEnabledComps.every(
+        (c) => compSignature(c) === signature,
+      );
+    }
+  }
+
+  const ageGroupsSource = ageGroupsEnabledComps[0] || null;
+  const seriesAgeGroups =
+    ageGroupsEnabled && ageGroupsHomogeneus && ageGroupsSource
+      ? resolveAgeGroups(ageGroupsSource)
+      : [];
+
+  return {
+    ageGroupsEnabled,
+    ageGroupsHomogeneus,
+    ageGroupsSource,
+    seriesAgeGroups,
+  };
+};
+
+/**
+ * Resuelve el _id local de un grupo de edad a partir de su firma completa
+ * (no solo el label), evitando colisiones entre grupos con nombres repetidos.
+ */
+const resolveLocalAgeGroupId = (comp, signature) => {
+  if (!signature || !comp.ageGroupsEnabled) return null;
+  return (
+    resolveAgeGroups(comp).find((g) => ageGroupSignature(g) === signature)
+      ?._id || null
+  );
+};
+
+/**
  * Calcula la edad de una persona en una fecha de referencia dada.
  */
 const getAgeAtDate = (birthDate, referenceDate) => {
@@ -581,12 +644,17 @@ const computeAbsentScore = (isF1, maxAssignedScore) =>
   isF1 ? 0 : maxAssignedScore + 1;
 
 module.exports = {
+  ROUND_FORMATS,
+  getRoundFormatMeta,
   calculateStats,
   processAdvancements,
   sortResultsWCA,
   calculateSOR,
   DEFAULT_AGE_GROUPS,
   resolveAgeGroups,
+  ageGroupSignature,
+  computeSeriesAgeGroupHomogeneity,
+  resolveLocalAgeGroupId,
   getAgeAtDate,
   resolveCompetitorAge,
   F1_POINTS,

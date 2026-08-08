@@ -15,10 +15,11 @@ if (!process.env.JWT_SECRET) {
 }
 
 // --- Dependencias principales ---
-const mongoose = require("mongoose"); // ODM para MongoDB
+const { connectDB } = require("./config/db");
 const http = require("http"); // Servidor HTTP nativo (necesario para Socket.IO)
 const { Server } = require("socket.io"); // WebSockets para actualizaciones en tiempo real
 const createApp = require("./app");
+const logger = require("./utils/logger");
 
 // --- Creación de la aplicación Express ---
 const app = createApp();
@@ -53,25 +54,23 @@ app.set("socketio", io);
 
 // Escucha conexiones/desconexiones de clientes WebSocket
 io.on("connection", (socket) => {
-  console.log(
-    `📡 Un espectador/admin se ha conectado en vivo (ID: ${socket.id})`,
+  logger.info({ socketId: socket.id }, "Cliente WebSocket conectado");
+  socket.on("disconnect", () =>
+    logger.info({ socketId: socket.id }, "Cliente WebSocket desconectado"),
   );
-
-  socket.on("disconnect", () => {
-    console.log(`🔌 Espectador desconectado (ID: ${socket.id})`);
-  });
 });
 
 // ============================================================
-// CONEXIÓN A MONGODB
-// Usa la URI definida en .env para conectar a MongoDB Atlas.
+// ARRANQUE: conecta a MongoDB ANTES de aceptar tráfico HTTP/WS
 // ============================================================
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ Conectado a MongoDB Atlas"))
-  .catch((err) => console.error("❌ Error de conexión a MongoDB:", err));
+const startServer = async () => {
+  try {
+    await connectDB();
+    server.listen(PORT, () => logger.info({ port: PORT }, "Servidor iniciado"));
+  } catch (err) {
+    logger.error({ err }, "Error de conexión a MongoDB");
+    process.exit(1);
+  }
+};
 
-// --- Inicia el servidor HTTP (que a su vez activa Socket.IO) ---
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor protegido corriendo en puerto ${PORT}`);
-});
+startServer();

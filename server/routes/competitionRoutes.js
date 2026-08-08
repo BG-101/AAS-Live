@@ -13,6 +13,9 @@ const validateObjectId = require("../middleware/validateObjectId");
 const Result = require("../models/Result");
 const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
+const { editWindowGuard, byParamId } = require("../middleware/editWindow");
+const { ROUND_FORMATS } = require("../utils/wcaLogic");
+const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
 // GET /api/competitions
@@ -31,7 +34,7 @@ router.get("/", async (req, res) => {
       });
     res.json(competitions);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -68,7 +71,7 @@ router.get("/by-wca/:wcaId", async (req, res) => {
 
     res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -96,7 +99,7 @@ router.get("/:id", validateObjectId(), async (req, res) => {
 
     res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -128,6 +131,18 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
       .json({ message: "Debes incluir al menos 1 evento." });
   if (!Array.isArray(rounds) || rounds.length === 0)
     return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
+
+  const invalidFormatRound = rounds.find(
+    (r) =>
+      !r ||
+      typeof r.format !== "string" ||
+      !Object.hasOwn(ROUND_FORMATS, r.format),
+  );
+  if (invalidFormatRound)
+    return res.status(400).json({
+      message: `Formato de ronda inválido: "${invalidFormatRound?.format}".`,
+    });
+
   if (
     competitorLimit !== undefined &&
     (isNaN(competitorLimit) || Number(competitorLimit) <= 0)
@@ -179,6 +194,7 @@ router.post(
   "/:id/next-round",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, currentRoundNumber } = req.body;
     try {
@@ -229,7 +245,7 @@ router.post(
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json(comp);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -245,6 +261,7 @@ router.put(
   "/:id/round-settings",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const {
       event,
@@ -264,14 +281,19 @@ router.put(
       );
 
       if (roundIndex !== -1) {
+        const resolvedFormat = format || "a";
+        if (!Object.hasOwn(ROUND_FORMATS, resolvedFormat))
+          return res
+            .status(400)
+            .json({ message: `Formato de ronda inválido: "${format}".` });
+
         // Actualiza los campos de configuración
         comp.rounds[roundIndex].advancementType = advancementType;
         comp.rounds[roundIndex].advancementValue = advancementValue;
-        comp.rounds[roundIndex].format = format || "a";
+        comp.rounds[roundIndex].format = resolvedFormat;
         comp.rounds[roundIndex].cutoff = cutoff || 0;
 
         await comp.save();
-
         // Notifica a los clientes conectados
         req.app.get("socketio").emit("competicion_actualizada", req.params.id);
         res.json(comp);
@@ -279,7 +301,7 @@ router.put(
         res.status(404).json({ message: "Ronda no encontrada" });
       }
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -296,6 +318,7 @@ router.put(
   "/:id/round-status",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, roundNumber, status } = req.body;
     try {
@@ -318,7 +341,7 @@ router.put(
         res.status(404).json({ message: "Ronda no encontrada" });
       }
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -343,37 +366,91 @@ router.delete(
 
       res.json({ message: "Competición movida a la papelera (Soft Delete)" });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
 
-// ============================================================
-// DELETE /api/competitions/:id/round-results-after
-// Elimina los resultados de todas las rondas posteriores a
-// roundNumber para un evento dado. Se llama cuando el admin
-// reabre una ronda y confirma que quiere limpiar datos inconsistentes.
-// ============================================================
+/**
+ * DELETE /api/competitions/:id/round-results-after
+ * Elimina los resultados de un evento en todas las rondas posteriores que estuviera
+ * Finished, ya que sus resultados quedaron borrados. Operación atómica
+ * (transacción): si el guardado de la competición falla, el borrado de
+ * resultados se revierte.
+ * @param {string} req.params.id - ID de la competición
+ * @param {string} req.body.event - Evento a limpiar (debe existir en comp.events)
+ * @param {number} req.body.fromRound - Ronda a partir de la cual se borra (exclusive)
+ */
 router.delete(
   "/:id/round-results-after",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, fromRound } = req.body;
-    try {
-      const comp = await getCompetitionOrFail(req.params.id, res);
-      if (!comp) return;
 
-      await Result.deleteMany({
-        competition: req.params.id,
-        event,
-        round: { $gt: fromRound },
+    if (typeof event !== "string" || event.trim() === "") {
+      return res.status(400).json({ message: "event inválido." });
+    }
+
+    // Exige un number JSON real: Number(null|false|"") === 0 coincidía con
+    // fromRound=0 (borrar todo desde la ronda 1) sin que el cliente lo pidiera.
+    if (
+      typeof fromRound !== "number" ||
+      !Number.isInteger(fromRound) ||
+      fromRound < 0
+    ) {
+      return res.status(400).json({ message: "fromRound inválido." });
+    }
+
+    const session = await mongoose.startSession();
+    const businessError = (status, msg) =>
+      Object.assign(new Error(msg), { status });
+
+    try {
+      await session.withTransaction(async () => {
+        // Lectura DENTRO de la transacción: se re-evalúa en cada retry,
+        // así que un round-status concurrente entre intentos queda cubierto
+        const comp = await Competition.findOne({
+          _id: req.params.id,
+          isDeleted: { $ne: true },
+        }).session(session);
+        if (!comp) throw businessError(404, "Competición no enontrada.");
+
+        if (!comp.events.includes(event)) {
+          throw businessError(400, "Evento no pertenece a esta competición.");
+        }
+
+        await Result.deleteMany(
+          {
+            competition: req.params.id,
+            event,
+            round: { $gt: fromRound },
+          },
+          { session },
+        );
+
+        let reopenedAny = false;
+        comp.rounds.forEach((r) => {
+          if (
+            r.event === event &&
+            r.roundNumber > fromRound &&
+            r.status === "Finished"
+          ) {
+            r.status = "In Progress";
+            reopenedAny = true;
+          }
+        });
+        if (reopenedAny) await comp.save({ session });
       });
 
+      // Socket + respuesta solo tras commit confirmado
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err, { status: err.status || 500 });
+    } finally {
+      session.endSession();
     }
   },
 );

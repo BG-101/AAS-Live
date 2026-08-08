@@ -38,6 +38,9 @@ const WCA_EVENTS = [
   "Clock",
 ];
 
+/**
+ * Renders the home page for authentication, competition management, and live competition updates.
+ */
 function Home() {
   // --- Estado de autenticación ---
   const [user, setUser] = useState(null); // { role, username } o null
@@ -226,7 +229,9 @@ function Home() {
         // Determina el formato por defecto según el evento
         let defFormat = "a"; // Ao5 por defecto
         if (["6x6", "7x7", "FMC"].includes(ev)) defFormat = "m"; // Mo3 para puzzles grandes y FMC
-        if (["3x3 BLD", "4x4 BLD", "5x5 BLD"].includes(ev)) defFormat = "b"; // Bo3 para BLD
+        if (ev === "3x3 BLD")
+          defFormat = "b5"; // Bo5, formato WCA actualizado
+        else if (["4x4 BLD", "5x5 BLD"].includes(ev)) defFormat = "b"; // Bo3 resto BLD
 
         // Activa el evento con 1 ronda por defecto (ronda final, value=0)
         newConf[ev] = [
@@ -829,6 +834,7 @@ function Home() {
                                     <option value="a">Ao5</option>
                                     <option value="m">Mo3</option>
                                     <option value="b">Bo3</option>
+                                    <option value="b5">Bo5</option>
                                   </select>
 
                                   {/* Cutoff */}

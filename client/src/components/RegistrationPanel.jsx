@@ -3,7 +3,7 @@
 // Renderiza la interfaz y la l?gica de este componente.
 // ============================================================
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
@@ -33,6 +33,16 @@ const EMPTY_FORM = {
   events: [],
 };
 
+/**
+ * Displays and manages competition registrations in a modal panel.
+ * @param {boolean} show - Whether the registration panel is visible.
+ * @param {Function} onClose - Callback invoked when the panel is closed.
+ * @param {string} competitionId - Identifier of the competition.
+ * @param {string[]} competitionEvents - Events available for manual registrations.
+ * @param {string|Date} competitionStartDate - Start date used to calculate competitor ages.
+ * @param {Object} user - Current user, including their role for privileged actions.
+ * @returns {JSX.Element|null} The registration panel when visible, otherwise `null`.
+ */
 export default function RegistrationPanel({
   show,
   onClose,
@@ -51,23 +61,24 @@ export default function RegistrationPanel({
 
   const webhookUrl = `${API_URL || window.location.origin}/api/registrations/webhook/${competitionId}`;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await axios.get(
         `${API_URL}/api/registrations/${competitionId}`,
       );
       setRegistrations(data);
-    } catch {
-      toast("Error cargando inscripciones", "error");
+    } catch (err) {
+      if (err.code !== "ECONNABORTED")
+        toast("Error cargando inscripciones", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [competitionId]);
 
   useEffect(() => {
     if (show) load();
-  }, [show]);
+  }, [show, load]);
 
   if (!show) return null;
 
@@ -269,6 +280,9 @@ export default function RegistrationPanel({
               </p>
               <pre className="bg-gray-900 text-green-300 text-[10px] rounded p-2 overflow-x-auto whitespace-pre-wrap select-all">
                 {`function onFormSubmit(e) {
+  // Nota: "var" es intencional aquí (no un descuido) - es el estilo
+  // predominante en la documentación y ejemplos oficiales de Google Apps
+  // Script; let/const también funcionan en el runtime V8 moderno.
   var WEBHOOK_URL = "${webhookUrl}";
   var SECRET = "TU_SECRETO_AQUI";
   

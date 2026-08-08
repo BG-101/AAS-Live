@@ -9,10 +9,12 @@ import App from "./App.jsx";
 import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 import axios from "axios";
+import { toast } from "./utils/toast.js";
 
 // Configura Axios para enviar cookies automáticamente en cada petición.
 // Necesario para que el JWT httpOnly se envíe al servidor.
 axios.defaults.withCredentials = true;
+axios.defaults.timeout = 15000; // 15s: evita peticiones colgadas indefinidamente
 
 // Interceptor global de respuestas de Axios.
 // Si el servidor devuelve un 401 (token inválido/expirado),
@@ -21,6 +23,12 @@ axios.defaults.withCredentials = true;
 axios.interceptors.response.use(
   (response) => response, // Las respuestas exitosas pasan sin cambios
   (error) => {
+    if (error.code === "ECONNABORTED") {
+      toast(
+        "La conexión con el servidor está tardando demasiado. Inténtalo de nuevo.",
+        "error",
+      );
+    }
     if (error.response && error.response.status === 401) {
       // Emite un evento global que los componentes escuchan para limpiar el estado de auth
       window.dispatchEvent(new Event("auth-expired"));

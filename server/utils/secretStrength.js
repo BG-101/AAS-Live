@@ -36,7 +36,7 @@ const isRepeatingPattern = (value) => {
 };
 
 /**
- * @returns {strin|null} mensaje de error, o null si el secreto es aceptable
+ * @returns {string|null} mensaje de error, o null si el secreto es aceptable
  */
 const validateSecretStrength = (value, { minLength, minUniqueChars }) => {
   if (!value || value.length < minLength)
@@ -46,7 +46,7 @@ const validateSecretStrength = (value, { minLength, minUniqueChars }) => {
   if (hasLowCharDiversity(value, minUniqueChars))
     return `Debe tener al menos ${minUniqueChars} caracteres distintos (evita repeticiones).`;
   if (isRepeatingPattern(value))
-    return "Es un patrón repetitivo trivial. Eligo uno con más entropía.";
+    return "Es un patrón repetitivo trivial. Elige uno con más entropía.";
   return null;
 };
 

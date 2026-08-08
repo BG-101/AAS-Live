@@ -1,6 +1,6 @@
 // ============================================================
 // UTILIDAD: socket
-// Centraliza l?gica reutilizable para esta parte de la aplicaci?n.
+// Centraliza lógica reutilizable para esta parte de la aplicación.
 // ============================================================
 
 import { io } from "socket.io-client";

@@ -35,6 +35,7 @@ import {
   formatWCATimesArray,
   formatDateRange,
   resolveCompetitorAge,
+  getRoundFormatMeta,
 } from "../utils/formatters";
 
 const DEFAULT_AGE_GROUPS_CLIENT = [
@@ -79,6 +80,11 @@ const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {
   return false;
 };
 
+/**
+ * Displays and manages a competition's events, rounds, competitors, and results.
+ *
+ * @returns {JSX.Element} The competition management and results interface.
+ */
 function CompetitionDetails() {
   // Obtiene el ID de la competición desde la URL (/competition/:id)
   const { wcaId } = useParams();
@@ -213,6 +219,8 @@ function CompetitionDetails() {
       .catch((e) => {
         // Si la competición no existe (404), redirige al inicio
         if (e.response?.status === 404) navigate("/");
+        else if (e.code !== "ECONNABORTED")
+          toast("Error al cargar la competición.", "error");
       });
   }, [wcaId, refreshCompetitions, navigate]);
 
@@ -450,7 +458,7 @@ function CompetitionDetails() {
   const isRoundFinished = currentRoundObj?.status === "Finished";
   const roundFormat = currentRoundObj?.format || "a"; // "a" (Ao5), "m" (Mo3), "b" (Bo3)
   const roundCutoff = currentRoundObj?.cutoff || 0; // Cutoff en centésimas
-  const attemptsCount = roundFormat === "a" ? 5 : 3; // Número de intentos según formato
+  const attemptsCount = getRoundFormatMeta(roundFormat).attempts; // Número de intentos según formato
 
   /**
    * Calcula el índice límite del cutoff:
@@ -676,7 +684,7 @@ function CompetitionDetails() {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
       }
     } else {
-      if (!window.confirm("¿Marcar como FINALIADA?")) return;
+      if (!window.confirm("¿Marcar como FINALIZADA?")) return;
     }
 
     try {
@@ -764,6 +772,13 @@ function CompetitionDetails() {
       );
     return 0;
   }, [currentRoundObj, participantes]);
+
+  const sorRoundsFinished = useMemo(() => {
+    if (!competition) return false;
+    return competition.events.every((ev) =>
+      competition.rounds.some((r) => r.event === ev && r.status === "Finished"),
+    );
+  }, [competition]);
 
   // ============================================================
   // PANTALLA DE CARGA
@@ -1201,7 +1216,7 @@ function CompetitionDetails() {
               <SORTable
                 compId={compId}
                 ageGroupsEnabled={competition.ageGroupsEnabled}
-                isRoundFinished={isRoundFinished}
+                isRoundFinished={sorRoundsFinished}
               />
             </div>
           ) : (
@@ -1253,7 +1268,7 @@ function CompetitionDetails() {
                   </button>
                 )}
 
-                {/* Botón exportar CSV - visible para todos cuand hay resultados */}
+                {/* Botón exportar CSV - visible para todos cuando hay resultados */}
                 {displayResults.length > 0 && (
                   <button
                     onClick={() =>
@@ -1279,7 +1294,7 @@ function CompetitionDetails() {
                 attemptsCount={attemptsCount}
                 roundFormat={roundFormat}
                 isRoundFinished={isRoundFinished}
-                isFinalRound={parseInt(currentRoundObj?.advancementValue) === 0}
+                isFinalRound={Number(currentRoundObj?.advancementValue) === 0}
                 faltantes={faltantes}
                 participantesQueClasifican={participantesQueClasifican}
                 selectedRound={selectedRound}

@@ -241,3 +241,14 @@ export const resolveCompetitorAge = (person, referenceDate) => {
   if (person?.birthDate) return getAgeAtDate(person.birthDate, referenceDate);
   return person?.age ?? null;
 };
+
+export const ROUND_FORMATS = {
+  a: { label: "Ao5", attempts: 5, hasAverage: true },
+  m: { label: "Mo3", attempts: 3, hasAverage: true },
+  b: { label: "Bo3", attempts: 3, hasAverage: false },
+  b5: { label: "Bo5", attempts: 5, hasAverage: false },
+};
+export const getRoundFormatMeta = (format) =>
+  ROUND_FORMATS[format] || ROUND_FORMATS.a;
+export const shouldUseBestAsResult = (format) =>
+  !getRoundFormatMeta(format).hasAverage;

@@ -8,6 +8,7 @@
 // ============================================================
 
 import React, { useState } from "react";
+import { getRoundFormatMeta, shouldUseBestAsResult } from "../utils/formatters";
 
 /**
  * @param {Array} results - Array de resultados ordenados por posición
@@ -26,7 +27,16 @@ import React, { useState } from "react";
 // ============================================================
 // Panel de detalle móvil (bottom sheet)
 // Muestra los tiempos completos de un competidor al pulsar su fila.
-// ============================================================
+/**
+ * Display detailed attempt times and the calculated result for a selected competitor.
+ * @param {Object|null} result - The selected competitor's result, or `null` when the sheet is hidden.
+ * @param {string} roundFormat - The format used to interpret and display the round result.
+ * @param {number} attemptsCount - The number of attempt slots to display.
+ * @param {Function} formatTime - Formats the final result value.
+ * @param {Function} formatWCATimesArray - Formats the competitor's attempt times.
+ * @param {Function} onClose - Handles closing the detail sheet.
+ * @returns {JSX.Element|null} The detail sheet, or `null` when no result is selected.
+ */
 function MobileDetailSheet({
   result,
   roundFormat,
@@ -40,10 +50,9 @@ function MobileDetailSheet({
   const paddedTimes = [...result.times];
   while (paddedTimes.length < attemptsCount) paddedTimes.push(0);
   const formattedTimes = formatWCATimesArray(paddedTimes, roundFormat);
-  const avgLabel =
-    roundFormat === "a" ? "Ao5" : roundFormat === "m" ? "Mo3" : "Best";
+  const avgLabel = getRoundFormatMeta(roundFormat).label;
   const avgValue = formatTime(
-    roundFormat === "b" ? result.best : result.average,
+    shouldUseBestAsResult(roundFormat) ? result.best : result.average,
   );
 
   return (
@@ -113,7 +122,24 @@ function MobileDetailSheet({
 
 // ============================================================
 // COMPONENTE: ResultsTable
-// ============================================================
+/**
+ * Renders responsive round results with rankings, attempts, result values, and optional withdrawal controls.
+ * @param {Array} results - The competitors' round results.
+ * @param {number} attemptsCount - The number of attempt columns to display.
+ * @param {string} roundFormat - The format used to calculate and display results.
+ * @param {boolean} isRoundFinished - Whether the round has finished.
+ * @param {boolean} isFinalRound - Whether the round is the final round.
+ * @param {number} faltantes - The number of remaining results needed for advancement calculations.
+ * @param {number} participantesQueClasifican - The number of competitors who advance.
+ * @param {number} selectedRound - The current round number.
+ * @param {string} selectedEvent - The selected event identifier.
+ * @param {Function} formatTime - Formats a result value for display.
+ * @param {Function} formatWCATimesArray - Formats individual attempt times.
+ * @param {boolean} [suppressAdvanceColors=false] - Whether to hide advancement-based row colors.
+ * @param {boolean} [isWritableAdmin=false] - Whether administrative withdrawal controls are available.
+ * @param {Function|null} [onToggleWithdrawal=null] - Handles changes to a competitor's withdrawal status.
+ * @returns {React.ReactElement} The responsive results table and, when selected, the mobile result detail sheet.
+ */
 export default function ResultsTable({
   results,
   attemptsCount,
@@ -132,8 +158,7 @@ export default function ResultsTable({
 }) {
   const [selectedResult, setSelectedResult] = useState(null);
 
-  const avgLabel =
-    roundFormat === "a" ? "Ao5" : roundFormat === "m" ? "Mo3" : "Best";
+  const avgLabel = getRoundFormatMeta(roundFormat).label;
 
   // Calcula el rowClass
   const getRowClass = (res, posicion) => {
@@ -190,7 +215,7 @@ export default function ResultsTable({
             {results.map((res, index) => {
               const posicion = index + 1;
               const avgValue = formatTime(
-                roundFormat === "b" ? res.best : res.average,
+                shouldUseBestAsResult(roundFormat) ? res.best : res.average,
               );
               const rowClass = getRowClass(res, posicion);
 
@@ -304,7 +329,11 @@ export default function ResultsTable({
 
                   {/* Resultado final: average (Ao5/Mo3) o best (Bo3) */}
                   <td className="p-4 text-right font-black text-lg text-almeria-dark">
-                    {formatTime(roundFormat === "b" ? res.best : res.average)}
+                    {formatTime(
+                      shouldUseBestAsResult(roundFormat)
+                        ? res.best
+                        : res.average,
+                    )}
                   </td>
 
                   {isWritableAdmin && !isRoundFinished && (

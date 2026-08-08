@@ -27,8 +27,8 @@ const basePayload = (overrides = {}) => ({
   wcaId: `PayloadComp${Date.now()}${Math.random()}`,
   name: "Nueva Competición",
   location: "Almería",
-  startDate: "2026-06-01",
-  endDate: "2026-06-01",
+  startDate: new Date(),
+  endDate: new Date(),
   competitorLimit: 50,
   events: ["3x3"],
   rounds: [
@@ -49,8 +49,8 @@ const makeCompetition = (overrides = {}) =>
   Competition.create({
     wcaId: `Comp${Date.now()}${Math.random()}`,
     name: "Test Comp",
-    startDate: "2026-06-01",
-    endDate: "2026-06-01",
+    startDate: new Date(),
+    endDate: new Date(),
     location: "Test",
     events: ["3x3"],
     rounds: [
@@ -521,5 +521,57 @@ describe("DELETE /api/competitions/:id/round-results-after", () => {
       .set("Cookie", cookie)
       .send({ event: "3x3", fromRound: 1 });
     expect(res.status).toBe(404);
+  });
+
+  test("reabre (In Progress) las rondas posteriores Finished cuyos resultados fueron borrados", async () => {
+    const comp = await makeCompetition({
+      rounds: [
+        {
+          event: "3x3",
+          roundNumber: 1,
+          status: "Finished",
+          advancementType: "ranking",
+          advancementValue: 16,
+          format: "a",
+          cutoff: 0,
+        },
+        {
+          event: "3x3",
+          roundNumber: 2,
+          status: "Finished",
+          advancementType: "ranking",
+          advancementValue: 0,
+          format: "a",
+          cutoff: 0,
+        },
+      ],
+    });
+    const Competitor = require("../models/Competitor");
+    const competitor = await Competitor.create({
+      competitorNumber: 1,
+      name: "Ana",
+      competition: comp._id,
+      events: ["3x3"],
+    });
+    await Result.create({
+      competition: comp._id,
+      competitor: competitor._id,
+      event: "3x3",
+      round: 2,
+      times: [900],
+      best: 900,
+      average: 950,
+    });
+
+    const res = await request(app)
+      .delete(`/api/competitions/${comp._id}/round-results-after`)
+      .set("Cookie", cookie)
+      .send({ event: "3x3", fromRound: 1 });
+
+    expect(res.status).toBe(200);
+    const updated = await Competition.findById(comp._id);
+    expect(update.rounds.find((r) => r.roundNumber === 2).status).toBe(
+      "In Progress",
+    );
   });
 });
