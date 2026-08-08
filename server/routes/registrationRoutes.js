@@ -17,6 +17,7 @@ const { hasReachedDate } = require("../utils/dateHelpers");
 const {
   editWindowGuard,
   byRegistrationId,
+  byParamId,
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
 
@@ -140,6 +141,7 @@ router.post(
   "/manual/:compId",
   validateObjectId("compId"),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byParamId("compId")),
   async (req, res) => {
     try {
       const { name, wcaId, age, birthDate, locality, email, events } = req.body;
@@ -415,6 +417,12 @@ router.patch(
         competitor: newCompetitor,
       });
     } catch (err) {
+      if (err.code === 11000 && err.keyPattern?.name) {
+        return res.status(409).json({
+          message:
+            "Conflicto al aprobar: ya existe un competidor con ese nombre en esta competición. Reintenta.",
+        });
+      }
       sendServerError(res, err, { status: err.status === 400 ? 400 : 500 });
     } finally {
       session.endSession();

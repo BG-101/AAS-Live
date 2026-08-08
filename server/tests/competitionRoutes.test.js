@@ -546,7 +546,7 @@ describe("DELETE /api/competitions/:id/round-results-after", () => {
         },
       ],
     });
-    const Competitor = require("../models.Competitor");
+    const Competitor = require("../models/Competitor");
     const competitor = await Competitor.create({
       competitorNumber: 1,
       name: "Ana",
@@ -570,7 +570,7 @@ describe("DELETE /api/competitions/:id/round-results-after", () => {
 
     expect(res.status).toBe(200);
     const updated = await Competition.findById(comp._id);
-    expect(update.rounds.find((r) => (r.roundNumber = 2)).status).toBe(
+    expect(update.rounds.find((r) => r.roundNumber === 2).status).toBe(
       "In Progress",
     );
   });

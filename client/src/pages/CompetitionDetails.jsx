@@ -214,7 +214,8 @@ function CompetitionDetails() {
       .catch((e) => {
         // Si la competición no existe (404), redirige al inicio
         if (e.response?.status === 404) navigate("/");
-        else toast("Error al cargar la competición.", "error");
+        else if (e.code !== "ECONNABORTED")
+          toast("Error al cargar la competición.", "error");
       });
   }, [wcaId, refreshCompetitions, navigate]);
 

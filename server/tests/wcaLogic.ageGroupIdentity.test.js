@@ -49,7 +49,7 @@ describe("resolveLocalAgeGroupId", () => {
     expect(resolveLocalAgeGroupId(compA, olderSig)).toBe("a2");
     // Mismo label+rango en otra competición con orden de declaración distinto
     expect(resolveLocalAgeGroupId(compB, youngerSig)).toBe("b2");
-    expect(resolveLocalAgeGroupId(compB, olderAge)).toBe("b1");
+    expect(resolveLocalAgeGroupId(compB, olderSig)).toBe("b1");
   });
 
   test("signature inexistente en la competición -> null", () => {

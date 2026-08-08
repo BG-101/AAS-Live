@@ -8,10 +8,13 @@ on:
 jobs:
   guard-env-files:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Comprobar que no hay archivos .env versionados
         run: |

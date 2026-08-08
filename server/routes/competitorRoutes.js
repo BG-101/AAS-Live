@@ -21,6 +21,7 @@ const {
   editWindowGuard,
   byBodyCompetitionId,
   byCompetitorId,
+  isEditWindowOpen,
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
 
@@ -253,6 +254,14 @@ router.post(
           for (const seriesComp of seriesComps) {
             try {
               let mirroredCreatedThisComp = false;
+
+              if (!isEditWindowOpen(seriesComp, req.user?.role)) {
+                console.warn(
+                  `Auto-inscripción omitida en "${seriesComp.name}": fuera de la ventana de edición.`,
+                );
+                continue;
+              }
+
               // No duplicar si ya existe (activo) en esa competición
               const alreadyExists = await Competitor.findOne({
                 name: req.body.name.trim(),

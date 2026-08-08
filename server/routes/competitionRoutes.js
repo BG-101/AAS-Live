@@ -132,7 +132,9 @@ router.post("/", auth(["SuperAdmin"]), async (req, res) => {
   if (!Array.isArray(rounds) || rounds.length === 0)
     return res.status(400).json({ message: "Debes incluir al menos 1 ronda." });
 
-  const invalidFormatRound = rounds.find((r) => !ROUND_FORMATS[r.format]);
+  const invalidFormatRound = rounds.find(
+    (r) => !Object.hasOwn(ROUND_FORMATS, r.format),
+  );
   if (invalidFormatRound)
     return res.status(400).json({
       message: `Formato de ronda inválido: "${invalidFormatRound.format}".`,
@@ -277,7 +279,7 @@ router.put(
 
       if (roundIndex !== -1) {
         const resolvedFormat = format || "a";
-        if (!ROUND_FORMATS[resolvedFormat])
+        if (!Object.hasOwn(ROUND_FORMATS, resolvedFormat))
           return res
             .status(400)
             .json({ message: `Formato de ronda inválido: "${format}".` });
@@ -379,36 +381,40 @@ router.delete(
   editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, fromRound } = req.body;
+    const session = await mongoose.startSession();
     try {
-      const comp = await getCompetitionOrFail(req.params.id, res);
-      if (!comp) return;
+      const comp = await Competition.findOne({
+        _id: req.params.id,
+        isDeleted: { $ne: true },
+      }).session(session);
+      if (!comp)
+        return res.status(404).json({ message: "Competición no encontrada." });
 
-      await Result.deleteMany({
-        competition: req.params.id,
-        event,
-        round: { $gt: fromRound },
-      });
-
-      // Las rondas posteriores quedan vacías: si estaban "Finished" su estado
-      // ya no refleja la realidad (avances/SOR calculados sobre datos borrados).
-      // Se reabren para forzar su recomputo antes de poder volver a cerrarlas.
       let reopenedAny = false;
-      comp.rounds.forEach((r) => {
-        if (
-          r.event === event &&
-          r.roundNumber > fromRound &&
-          r.status === "Finished"
-        ) {
-          r.status === "In Progress";
-          reopenedAny = true;
-        }
+      await session.withTransaction(async () => {
+        await Result.deleteMany(
+          { competition: req.params.id, event, round: { $gt: fromRound } },
+          { session },
+        );
+        comp.rounds.forEach((r) => {
+          if (
+            r.event === event &&
+            r.roundNumber > fromRound &&
+            r.status === "Finished"
+          ) {
+            r.status = "In Progress";
+            reopenedAny = true;
+          }
+        });
+        if (reopenedAny) await comp.save({ session });
       });
-      if (reopenedAny) await comp.save();
 
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {
       sendServerError(res, err);
+    } finally {
+      session.endSession();
     }
   },
 );

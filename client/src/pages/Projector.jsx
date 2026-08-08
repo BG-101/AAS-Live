@@ -59,11 +59,9 @@ function Projector() {
       .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
       .then((res) => setCompetition(res.data))
       .catch((err) => {
-        (console.error(err),
-          toast(
-            "No se pudo cargar la competición para el proyector.",
-            "error",
-          ));
+        console.error(err);
+        if (err.code !== "ECONNABORTED")
+          toast("No se pudo cargar la competición para el proyector.", "error");
       });
   }, [wcaId, refreshTrigger]);
 
@@ -78,7 +76,8 @@ function Projector() {
       .then((res) => setResults(res.data))
       .catch((err) => {
         console.error(err);
-        toast("Error al cargar los resultados en vivo.", "error");
+        if (err.code !== "ECONNABORTED")
+          toast("Error al cargar los resultados en vivo.", "error");
       });
   }, [compId, event, roundNum, refreshTrigger]);
 
@@ -93,7 +92,8 @@ function Projector() {
       .then((res) => setCompetitors(res.data))
       .catch((err) => {
         console.error(err);
-        toast("Error al cargar los competidores elegibles.", "error");
+        if (err.code !== "ECONNABORTED")
+          toast("Error al cargar los competidores elegibles.", "error");
       });
   }, [compId, event, roundNum, refreshTrigger]);
 

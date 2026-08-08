@@ -183,7 +183,7 @@ describe("GET /api/sor/series/:seriesName", () => {
         { label: "Cadete", minAge: 11, maxAge: 14 },
       ],
       rounds: [
-        { events: "3x3", roundNumber: 1, format: "a", status: "Finished" },
+        { event: "3x3", roundNumber: 1, format: "a", status: "Finished" },
       ],
     });
 
@@ -201,7 +201,7 @@ describe("GET /api/sor/series/:seriesName", () => {
     expect(group1114).toBeDefined();
 
     const filtered = await request(app).get(
-      `/api/sor/series/${seresName}?ageGroup=${group1114._id}`,
+      `/api/sor/series/${seriesName}?ageGroup=${group1114._id}`,
     );
     expect(filtered.status).toBe(200);
     const entry = filtered.body.rankings.find((r) => r.name === "Joven");

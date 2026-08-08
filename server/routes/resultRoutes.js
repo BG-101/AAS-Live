@@ -152,7 +152,7 @@ router.post(
       }
 
       const format = roundConfig.format;
-      if (!ROUND_FORMATS[format]) {
+      if (!Object.hasOwn(ROUND_FORMATS, format)) {
         return res.status(400).json({
           message:
             "Formato de ronda inválido en la configuración de la competición.",

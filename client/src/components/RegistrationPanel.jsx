@@ -58,8 +58,9 @@ export default function RegistrationPanel({
         `${API_URL}/api/registrations/${competitionId}`,
       );
       setRegistrations(data);
-    } catch {
-      toast("Error cargando inscripciones", "error");
+    } catch (err) {
+      if (err.code !== "ECONNABORTED")
+        toast("Error cargando inscripciones", "error");
     } finally {
       setLoading(false);
     }
