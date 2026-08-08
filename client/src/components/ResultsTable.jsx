@@ -123,22 +123,22 @@ function MobileDetailSheet({
 // ============================================================
 // COMPONENTE: ResultsTable
 /**
- * Renders responsive round results with rankings, attempts, result values, and optional withdrawal controls.
- * @param {Array} results - The competitors' round results.
+ * Renders responsive round results with rankings, attempts, final values, and optional withdrawal controls.
+ * @param {Array} results - The competitors' results for the round.
  * @param {number} attemptsCount - The number of attempt columns to display.
- * @param {string} roundFormat - The format used to calculate and display results.
- * @param {boolean} isRoundFinished - Whether the round has finished.
- * @param {boolean} isFinalRound - Whether the round is the final round.
- * @param {number} faltantes - The number of remaining results needed for advancement calculations.
+ * @param {string} roundFormat - The round format used to label and calculate results.
+ * @param {boolean} isRoundFinished - Whether the round is finished.
+ * @param {boolean} isFinalRound - Whether this is the final round.
+ * @param {number} faltantes - The number of additional advancing competitors required in the current state.
  * @param {number} participantesQueClasifican - The number of competitors who advance.
  * @param {number} selectedRound - The current round number.
  * @param {string} selectedEvent - The selected event identifier.
  * @param {Function} formatTime - Formats a result value for display.
- * @param {Function} formatWCATimesArray - Formats individual attempt times.
- * @param {boolean} [suppressAdvanceColors=false] - Whether to hide advancement-based row colors.
- * @param {boolean} [isWritableAdmin=false] - Whether administrative withdrawal controls are available.
+ * @param {Function} formatWCATimesArray - Formats the individual attempt values.
+ * @param {boolean} [suppressAdvanceColors=false] - Whether to disable advancement-based row colors.
+ * @param {boolean} [isWritableAdmin=false] - Whether withdrawal controls are available.
  * @param {Function|null} [onToggleWithdrawal=null] - Handles changes to a competitor's withdrawal status.
- * @returns {React.ReactElement} The responsive results table and, when selected, the mobile result detail sheet.
+ * @return {React.ReactElement} The responsive results table and, when a result is selected, its mobile detail sheet.
  */
 export default function ResultsTable({
   results,
