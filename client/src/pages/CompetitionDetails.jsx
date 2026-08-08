@@ -80,6 +80,11 @@ const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {
   return false;
 };
 
+/**
+ * Displays and manages a competition's events, rounds, competitors, and results.
+ *
+ * @returns {JSX.Element} The competition management and results interface.
+ */
 function CompetitionDetails() {
   // Obtiene el ID de la competición desde la URL (/competition/:id)
   const { wcaId } = useParams();

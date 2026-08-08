@@ -33,6 +33,16 @@ const EMPTY_FORM = {
   events: [],
 };
 
+/**
+ * Displays and manages competition registrations in a modal panel.
+ * @param {boolean} show - Whether the registration panel is visible.
+ * @param {Function} onClose - Callback invoked when the panel is closed.
+ * @param {string} competitionId - Identifier of the competition.
+ * @param {string[]} competitionEvents - Events available for manual registrations.
+ * @param {string|Date} competitionStartDate - Start date used to calculate competitor ages.
+ * @param {Object} user - Current user, including their role for privileged actions.
+ * @returns {JSX.Element|null} The registration panel when visible, otherwise `null`.
+ */
 export default function RegistrationPanel({
   show,
   onClose,

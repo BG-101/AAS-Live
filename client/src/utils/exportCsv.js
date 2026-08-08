@@ -1,13 +1,13 @@
 import { getRoundFormatMeta, shouldUseBestAsResult } from "./formatters";
 
 /**
- * Genera y descarga un CSV con los resultados de una ronda.
+ * Generates and downloads a CSV file containing the results of a round.
  *
- * @param {Array} results - Array de resultados procesados
- * @param {string} event - Nombre del evento (ej: "3x3")
- * @param {number} round - Número de ronda
- * @param {string} roundFormat - Formato ("a", "m", "b")
- * @param {Function} formatTime - Función de formateo de tiempos
+ * @param {Array} results - The processed competitor results.
+ * @param {string} event - The event name used in the output filename.
+ * @param {number} round - The round number used in the output filename.
+ * @param {string} roundFormat - The round format that determines the attempt columns and final-result value.
+ * @param {Function} formatTime - Formats attempt and result times for CSV output.
  */
 export function exportResultsToCSV(
   results,

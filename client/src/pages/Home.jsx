@@ -38,6 +38,9 @@ const WCA_EVENTS = [
   "Clock",
 ];
 
+/**
+ * Renders the home page for authentication, competition management, and live competition updates.
+ */
 function Home() {
   // --- Estado de autenticación ---
   const [user, setUser] = useState(null); // { role, username } o null

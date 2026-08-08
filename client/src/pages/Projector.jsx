@@ -23,6 +23,14 @@ import {
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 
+/**
+ * Displays live competition results in list or podium view.
+ *
+ * Loads competition and round data, updates results in real time, and provides
+ * automatic scrolling and fullscreen controls.
+ *
+ * @return {JSX.Element} The projector results view.
+ */
 function Projector() {
   // Parámetros de la URL: /projector/:id/:event/:round
   const { wcaId, event, round } = useParams();
