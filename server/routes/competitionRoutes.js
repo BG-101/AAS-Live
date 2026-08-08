@@ -392,8 +392,14 @@ router.delete(
     if (typeof event !== "string" || event.trim() === "") {
       return res.status(400).json({ message: "event inválido." });
     }
-    const parsedFromRound = Number(fromRound);
-    if (!Number.isInteger(parsedFromRound) || parsedFromRound < 0) {
+
+    // Exige un number JSON real: Number(null|false|"") === 0 coincidía con
+    // fromRound=0 (borrar todo desde la ronda 1) sin que el cliente lo pidiera.
+    if (
+      typeof fromRound !== "number" ||
+      !Number.isInteger(fromRound) ||
+      fromRound < 0
+    ) {
       return res.status(400).json({ message: "fromRound inválido." });
     }
 
@@ -419,7 +425,7 @@ router.delete(
           {
             competition: req.params.id,
             event,
-            round: { $gt: parsedFromRound },
+            round: { $gt: fromRound },
           },
           { session },
         );
@@ -428,7 +434,7 @@ router.delete(
         comp.rounds.forEach((r) => {
           if (
             r.event === event &&
-            r.roundNumber > parsedFromRound &&
+            r.roundNumber > fromRound &&
             r.status === "Finished"
           ) {
             r.status = "In Progress";
