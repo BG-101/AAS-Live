@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Competition = require("../models/Competition");
 const Competitor = require("../models/Competitor");
 const Registration = require("../models/Registration");
@@ -38,9 +39,9 @@ const editWindowGuard = (resolveCompetition) => async (req, res, next) => {
     }
     next();
   } catch (err) {
-    // ID ya validado por validateObjectId: un fallo aquí es un error real
-    // (DB, etc.), no un ID malformado. Falla cerrado, no en abierto.
-    sendServerError(res, err);
+    // Un resolver puede marcar el error como validación de entrada (status
+    // propio); solo un fallo real (DB, etc.) cae en el 500 genérico.
+    sendServerError(res, err, { status: err.status || 500 });
   }
 };
 
@@ -48,8 +49,19 @@ const byParamId =
   (paramName = "id") =>
   (req) =>
     Competition.findById(req.params[paramName]);
-const byBodyCompetitionId = (req) =>
-  Competition.findById(req.body.competitionId);
+
+const byBodyCompetitionId = (req) => {
+  const id = req.body.competitionId;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    // ID malformado: petición inválida del cliente, no fallo del servidor.
+    // La ruta suele re-validarlo también, per este guard corre antes.
+    throw Object.assign(new Error("ID de competición inválido."), {
+      status: 400,
+    });
+  }
+  return Competition.findById(id);
+};
+
 const byCompetitorId =
   (paramName = "id") =>
   async (req) => {

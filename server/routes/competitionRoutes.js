@@ -398,22 +398,23 @@ router.delete(
     }
 
     const session = await mongoose.startSession();
+    const businessError = (status, msg) =>
+      Object.assign(new Error(msg), { status });
+
     try {
-      const comp = await Competition.findOne({
-        _id: req.params.id,
-        isDeleted: { $ne: true },
-      }).session(session);
-      if (!comp)
-        return res.status(404).json({ message: "Competición no encontrada." });
-
-      if (!comp.events.includes(event)) {
-        return res
-          .status(400)
-          .json({ message: "Evento no pertenece a esta competición." });
-      }
-
-      let reopenedAny = false;
       await session.withTransaction(async () => {
+        // Lectura DENTRO de la transacción: se re-evalúa en cada retry,
+        // así que un round-status concurrente entre intentos queda cubierto
+        const comp = await Competition.findOne({
+          _id: req.params.id,
+          isDeleted: { $ne: true },
+        }).session(session);
+        if (!comp) throw businessError(404, "Competición no enontrada.");
+
+        if (!comp.events.includes(event)) {
+          throw businessError(400, "Evento no pertenece a esta competición.");
+        }
+
         await Result.deleteMany(
           {
             competition: req.params.id,
@@ -423,6 +424,7 @@ router.delete(
           { session },
         );
 
+        let reopenedAny = false;
         comp.rounds.forEach((r) => {
           if (
             r.event === event &&
@@ -436,10 +438,11 @@ router.delete(
         if (reopenedAny) await comp.save({ session });
       });
 
+      // Socket + respuesta solo tras commit confirmado
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });
     } catch (err) {
-      sendServerError(res, err);
+      sendServerError(res, err, { status: err.status || 500 });
     } finally {
       session.endSession();
     }
