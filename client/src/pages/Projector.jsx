@@ -26,8 +26,8 @@ import { toast } from "../utils/toast";
 /**
  * Displays live competition results in list or podium view.
  *
- * Loads competition and round data, updates results in real time, and provides
- * automatic scrolling and fullscreen controls.
+ * Loads competition and round data, refreshes results in real time, and provides
+ * automatic view transitions, scrolling, and fullscreen controls.
  *
  * @return {JSX.Element} The projector results view.
  */

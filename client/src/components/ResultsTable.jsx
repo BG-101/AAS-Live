@@ -28,13 +28,13 @@ import { getRoundFormatMeta, shouldUseBestAsResult } from "../utils/formatters";
 // Panel de detalle móvil (bottom sheet)
 // Muestra los tiempos completos de un competidor al pulsar su fila.
 /**
- * Display detailed attempt times and the calculated result for a selected competitor.
- * @param {Object|null} result - The selected competitor's result, or `null` when the sheet is hidden.
- * @param {string} roundFormat - The format used to interpret and display the round result.
+ * Display detailed attempts and the calculated result for the selected competitor.
+ * @param {Object|null} result - The selected competitor's result, or `null` when the detail sheet is hidden.
+ * @param {string} roundFormat - The format used to determine the displayed result.
  * @param {number} attemptsCount - The number of attempt slots to display.
- * @param {Function} formatTime - Formats the final result value.
+ * @param {Function} formatTime - Formats the calculated result.
  * @param {Function} formatWCATimesArray - Formats the competitor's attempt times.
- * @param {Function} onClose - Handles closing the detail sheet.
+ * @param {Function} onClose - Closes the detail sheet.
  * @returns {JSX.Element|null} The detail sheet, or `null` when no result is selected.
  */
 function MobileDetailSheet({
@@ -126,19 +126,17 @@ function MobileDetailSheet({
  * Renders responsive round results with rankings, attempts, final values, and optional withdrawal controls.
  * @param {Array} results - The competitors' results for the round.
  * @param {number} attemptsCount - The number of attempt columns to display.
- * @param {string} roundFormat - The round format used to label and calculate results.
+ * @param {string} roundFormat - The format used to label and calculate round results.
  * @param {boolean} isRoundFinished - Whether the round is finished.
  * @param {boolean} isFinalRound - Whether this is the final round.
- * @param {number} faltantes - The number of additional advancing competitors required in the current state.
+ * @param {number} faltantes - The number of additional competitors needed to fill the advancing places.
  * @param {number} participantesQueClasifican - The number of competitors who advance.
  * @param {number} selectedRound - The current round number.
  * @param {string} selectedEvent - The selected event identifier.
- * @param {Function} formatTime - Formats a result value for display.
- * @param {Function} formatWCATimesArray - Formats the individual attempt values.
  * @param {boolean} [suppressAdvanceColors=false] - Whether to disable advancement-based row colors.
  * @param {boolean} [isWritableAdmin=false] - Whether withdrawal controls are available.
  * @param {Function|null} [onToggleWithdrawal=null] - Handles changes to a competitor's withdrawal status.
- * @return {React.ReactElement} The responsive results table and, when a result is selected, its mobile detail sheet.
+ * @return {React.ReactElement} The responsive results table and, when selected, the mobile result details.
  */
 export default function ResultsTable({
   results,
