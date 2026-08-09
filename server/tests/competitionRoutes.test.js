@@ -570,7 +570,7 @@ describe("DELETE /api/competitions/:id/round-results-after", () => {
 
     expect(res.status).toBe(200);
     const updated = await Competition.findById(comp._id);
-    expect(update.rounds.find((r) => r.roundNumber === 2).status).toBe(
+    expect(updated.rounds.find((r) => r.roundNumber === 2).status).toBe(
       "In Progress",
     );
   });
