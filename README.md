@@ -13,6 +13,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 - [Arquitectura](#arquitectura)
 - [Instalación](#instalación)
 - [Variables de entorno](#variables-de-entorno)
+- [Principio de mínimo privilegio](#principio-de-mínimo-privilegio)
 - [Inicialización del sistema](#inicialización-del-sistema)
 - [Roles y permisos](#roles-y-permisos)
 - [Funcionalidades principales](#funcionalidades-principales)
@@ -27,12 +28,15 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 - 🏆 **Gestión completa de competiciones** con soporte multidía, límite de aforo y agrupación en series/ligas.
 - 📝 **Gestión de inscripciones** con webhook para formularios externos, alta manual por organizador, estados pendient/approved/rejected y aprobación automática de competidores.
 - ⚡ **Resultados en tiempo real** mediante WebSockets: los tiempos introducidos por un delegado aparecen al instante en todas las pantallas conectadas sin peticiones GET adicionales.
-- 🔢 **Lógica WCA oficial**: cálculo de Ao5, Mo3 y Bo3; desempates por single; soporte para DNF y DNS; cutoffs configurables por ronda; formato heredado automáticamente en rondas sucesivas.
+- 🔢 **Lógica WCA oficial**: cálculo de Ao5, Mo3, Bo3 y Bo5 (BLD); desempates por single; soporte para DNF y DNS; cutoffs configurables por ronda; formato heredado automáticamente en rondas sucesivas.
 - 🔄 **Sistema multironda**: avance por porcentaje o top fijo, calculado de forma independiente por grupo de edad si la competición lo requiere.
 - 🏅 **Sistema SOR** (Sum of Ranks): ranking global por puntos con dos modalidades: SOR clásico y sistema Estilo F1, con penalizaciones diferenciadas para DNF y ausencia.
 - 👶 **Separación por grupos de edad**: Alevín (≤10), Infantil (11–15) y Absoluta (≥16), con clasificaciones independientes por categoría.
 - 📺 **Modo Proyector**: pantalla de resultados en vivo con scroll automático y animación de podio para finales.
 - 🔒 **Seguridad DevSecOps**: JWT en cookies `httpOnly`, RBAC, rate limiting, sanitización de queries MongoDB, registro de auditoría inmutable y protección contra race conditions en la asignación de números de competidor.
+- ⌛ **Ventana de edición por rol**: los Delegados solo pueden modificar tiempos, competidores y rondas hasta `DELEGATE_EDIT_WINDOW_DAYS` días después de la fecha de fin de la competición; pasado ese plazo, solo un SuperAdmin puede tocarla. Evita modificaciones accidentales o maliciosas sobre torneos ya cerrados.
+- 🔐 **Webhook de inscripciones con caducidad**: el formulario externo deja de aceptar repuestas automáticamente el mismo día en que empieza la competición, y no se puede regenerar el secreto pasada esa fecha.
+- 🐳 **Despliegue containerizado con auto-actualización**: imágenes Docker sin privilegios (usuario no-root) publicadas en GHCR en cada release de GitHub (excluyendo pre-release), con actualización automática del servidor vía Watchtower.
 
 ---
 
@@ -42,11 +46,13 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 | ------------- | ------------------------------------------------------------ |
 | Frontend      | React 18, Vite, React Router DOM, Tailwind CSS               |
 | Backend       | Node.js, Express                                             |
-| Base de datos | MongoDB Atlas (Mongoose)                                     |
+| Base de datos | MongoDB (Atlas o self-hosted, requiere Replica Set)          |
 | Tiempo real   | Socket.IO                                                    |
 | Autenticación | JWT + cookies `httpOnly`                                     |
 | Seguridad     | Helmet, express-rate-limit, express-mongo-sanitize, bcryptjs |
+| Logging       | Pino (structured logging)                                    |
 | HTTP client   | Axios                                                        |
+| Despliegue    | Docker, GitHub Actions, Watchtower                           |
 
 ---
 
@@ -55,7 +61,9 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 ```
 aas-live/
 ├── server/
-│   ├── index.js                  # Punto de entrada: Express + Socket.IO + MongoDB
+│   ├── index.js                  # Punto de entrada: Express + Socket.IO, arranque tras conexión a BD
+│   ├── config/
+│   │   └── db.js                 # Conexión a MongoDB desacoplada (Atlas o self-hosted/on-premise)
 │   ├── models/
 │   │   ├── Competition.js        # Competiciones, rondas y configuración
 │   │   ├── Competitor.js         # Competidores, inscripciones y retiradas
@@ -66,18 +74,22 @@ aas-live/
 │   │   ├── authRoutes.js         # Login, logout, registro, setup, cierre de proyectores
 │   │   ├── competitionRoutes.js  # CRUD de competiciones y gestión de rondas
 │   │   ├── competitorRoutes.js   # CRUD de competidores y elegibles por ronda
-│   │   ├── registrationRoutes.js # Gestión de inscripciones, webhooks y aprobaciones
+│   │   ├── registrationRoutes.js # Inscripciones, webhook con caducidad y aprobaciones
 │   │   ├── resultRoutes.js       # Guardado y consulta de tiempos
 │   │   ├── auditRoutes.js        # Consulta del log de auditoría
 │   │   └── sorRoutes.js          # Cálculo de SOR individual y de serie
 │   ├── middleware/
 │   │   ├── auth.js               # Verificación JWT y control de roles
+│   │   ├── editWindow.js         # Bloquea mutaciones de Delegados fuera de la ventana de edición
 │   │   └── validateObjectId.js   # Validación de parámetros ObjectId en rutas
 │   └── utils/
 │       ├── wcaLogic.js           # Lógica WCA: stats, avances, SOR, grupos de edad
-│       ├── parseEnvInt.js        # Parseo seguro de enteros positivos desde env vars (con cap de timers)
-│       ├── secretStrength.js     # Heurísticas de entropía para SETUP_BOOTSTRAP_TOKEN y DEFAULT_ADMIN_PASSWORD
-│       └── validateUsername.js   # Validación de formato de username (setup y registro)
+│       ├── dateHelpers.js        # Cálculo de días transcurridos inmune a DST (UTC-only)
+│       ├── parseEnvInt.js        # Parseo seguro de enteros positivos desde env vars
+│       ├── secretStrength.js     # Heurísticas de entropía para tokens/contraseñas de bootstrap
+│       ├── errorResponse.js      # Respuestas 500 genéricas en producción, detalladas en dev/test
+│       ├── logger.js             # Logger estructurado (Pino)
+│       └── validateUsername.js   # Validación de formato de username
 └── client/
     └── src/
         ├── pages/
@@ -99,7 +111,7 @@ aas-live/
         └── utils/
             ├── api.js                # URL base de la API según entorno (dev/prod)
             ├── socket.js             # Factoría de conexión Socket.IO con URL unificada
-            ├── formatters.js         # Conversión y formateo de tiempos WCA
+            ├── formatters.js         # Conversión y formateo de tiempos WCA (incluye Bo5)
             ├── exportCsv.js          # Generación y descarga de CSV de resultados
             └── toast.js              # Sistema de notificaciones toast ligero
 ```
@@ -162,6 +174,12 @@ El servidor corre por defecto en `http://localhost:3001` y el cliente en `http:/
 # en local, inicializa con --replSet aunque sea un único nodo)
 MONGO_URI=mongodb+srv://<usuario>:<password>@cluster.mongodb.net/<dbname>
 
+# Opcionales, solo relevantes para MongoDB self-hosted/on-premise.
+# Descomenta y ajusta SOLO si tu despliegue lo requiere; en Atlas no se usan.
+# MONGO_TLS_CA_FILE=/ruta/al/ca.pem
+# MONGO_AUTH_SOURCE=admin
+# MONGO_REPLICA_SET=rs0
+
 # Secreto para firmar los JWT (genera uno con el comando de abajo)
 JWT_SECRET=<string_aleatorio_64_bytes>
 
@@ -178,6 +196,11 @@ JWT_EXPIRES_IN=48h
 
 # maxAge de la cookie jwtToken en milisegundos
 COOKIE_MAX_AGE_MS=172800000
+
+# Días tras el endDate durante los cuales un Delegado aún puede editar
+# (tiempos, competidores, rondas, aprobar/rechazar inscripciones).
+# Pasados ese plazo, solo un SuperAdmin puede modificar la competición.
+DELEGATE_EDIT_WINDOW_DAYS=2
 
 # Rate limiting de /api/auth/login
 RATE_LIMIT_LOGIN_WINDOW_MS=900000
@@ -217,6 +240,25 @@ Para publicar una nueva versión: actualiza el campo `version` de `client/packag
 
 ---
 
+## Principio de mínimo privilegio
+
+El usuario de MongoDB usado para el schema inicial (`root`/admin) **no debe** ser el usuario de la aplicación en producción. Tras el primer arranque, crea un usuario dedicado con permisos limitados a la base de datos del proyecto:
+
+```bash
+mongosh "<MONGO_URI_ROOT>" --eval '
+use aas-live
+db.createUser({
+    user: "aas_live_app",
+    pwd: "<password-fuert-generada>",
+    roles: [{ role: "readWrite", db: "aas-live" }]
+})
+'
+```
+
+Después, `MONGO_URI` en `.env` debe apuntar a `aas_live_app`, nunca a las credenciales root/admin.
+
+---
+
 ## Inicialización del sistema
 
 La primera vez que arranques el servidor necesitas crear el usuario SuperAdmin. El endpoint `/api/auth/setup` exige tres condiciones simultáneas: `ALLOW_SETUP=true`, un `SETUP_BOOTSTRAP_TOKEN` fuerte configurado en el servidor, y ese mismo token enviado en el header de la petición.
@@ -242,11 +284,11 @@ Esto crea el usuario `DEFAULT_ADMIN_USERNAME` (o `admin` si no se define) con la
 
 ## Roles y permisos
 
-| Rol          | Descripción                | Permisos                                                                                     |
-| ------------ | -------------------------- | -------------------------------------------------------------------------------------------- |
-| `SuperAdmin` | Administrador total        | Crear competiciones, gestionar usuarios, editar competidores, vaciar papelera, ver auditoría |
-| `Delegado`   | Organizador de competición | Inscribir competidores, introducir tiempos, gestionar rondas, ver auditoría                  |
-| `Espectador` | Solo lectura               | Ver resultados en tiempo real, acceder al proyector                                          |
+| Rol          | Descripción                | Permisos                                                                                                                                                |
+| ------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SuperAdmin` | Administrador total        | Crear competiciones, gestionar usuarios, editar competidores, vaciar papelera, ver auditoría, editar competición sin límite temporal                    |
+| `Delegado`   | Organizador de competición | Inscribir competidores, introducir tiempos, gestionar rondas, ver auditoría - solo hasta `DELEGATE_EDIT_WINDOW_DAYS` días tras el fin de la competición |
+| `Espectador` | Solo lectura               | Ver resultados en tiempo real, acceder al proyector                                                                                                     |
 
 Los usuarios sin sesión iniciada pueden ver la lista de competiciones y los resultados públicos.
 
@@ -270,16 +312,19 @@ El sistema incorpora un flujo completo de inscripción para prepararse antes de 
 - **Estados de inscripción**: pendiente, aprobada o rechazada, con historial de acciones.
 - **Aprobación automática** que crea el competidor asociado, respeta el aforo configurado y lo replica en las competiciones activas de la serie (si aplica).
 - **Rechazo con motivo opcional** para gestionar casos especiales de forma ordenada.
+- **Caducidad automática**: el webhook deja de aceptar respuestas y no puede regenerarse el secreto una vez alcanzada la fecha de inicio (`startDate`) de la competición.
 
 ### Gestión de rondas
 
 Cada evento de una competición tiene una o varias rondas configurables con:
 
-- **Formato**: Ao5, Mo3 o Bo3. Las rondas siguientes heredan el formato de la primera.
-- **Cutoff**: tiempo límite para completar todos los intentos.
+- **Formato**: Ao5, Mo3, Bo3 o Bo5 (este último pensado para 3x3 BLD según el formato WCA actualizado). Las rondas siguientes heredan el formato de la primera.
+- **Cutoff**: tiempo límite para completar todos los intentos. Los intentos bloqueados por no superar el cutoff se registran como DNF, nunca como intento vacío.
 - **Avance**: por porcentaje del total o por top fijo (ej: top 16).
 
-Una ronda debe cerrarse con el candado antes de poder abrir la siguiente. Reabrir una ronda con resultados en rondas posteriores exige confirmación explícita y elimina dichos resultados para mantener la consistencia.
+Una ronda debe cerrarse con el candado antes de poder abrir la siguiente, y **no puede cerrarse una ronda si la anterior no está ya cerrada**. Los intentos no pueden guardarse en una ronda cerrada (Finished); hay que reabrirla primero.
+
+Reabrir una ronda con resultados en rondas posteriores exige confirmación explícita, elimina dichos resultados y **reabre automáticamente cualquier ronda posterior que estuviera cerrada**, dejando el estado siempre consistente con los datos reales disponibles. Este borrado y la reapertura se ejecutan como una única transacción de MongoDB.
 
 ### Sistema SOR
 
@@ -378,6 +423,10 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 - **Auditoría**: cada modificación de tiempos queda registrada en `AuditLog` con el estado anterior y el nuevo, accesible solo para admins.
 - **Endpoint de bootstrap protegido**: `/api/auth/setup` requiere un token dedicado (`SETUP_BOOTSTRAP_TOKEN`, comparado con `crypto.timingSafeEqual`) además de `ALLOW_SETUP=true`; el token y la contraseña por defecto se validan por entropía (longitud mínima, diversidad de caracteres, denylist de valores comunes) antes de poder crear el primer SuperAdmin.
 - **Configuración externalizada**: rate limits (login y escritura), duración del JWT, `maxAge` de la cookie y límite del body JSON se leen de variables de entorno con parseo seguro (`parsePositiveInt`), evitando valores negativos, `NaN` o superiores al límite de timers de Node.
+- **Ventana de edición temporal**: middleware `editWindowGuard` bloquea con 403 cualquier mutación de un Delegado (tiempos, competidores, rondas, aprobación de inscripciones, incluida la auto-inscripción en competiciones de serie) sobre competiciones finalizadas hace más de `DELEGATE_EDIT_WINDOW_DAYS` días. SuperAdmin no tiene esta restricción.
+- **Mensajes de error controlados**: en producción, los errores 500 devuelven un mensaje genérico al cliente; el detalle real solo se expone en `development`/`test` o en errores 4xx de validación. Todo se registra internamente con logging estructurado (Pino).
+- **Contenedores sin privilegios**: las imágenes Docker del servidor y del cliente corren como usuario no-root.
+- **CI/pre-commit**: un job de GitHub Actions y un hook local bloquean cualquier commit que incluya un archivo `.env` real (incluyendo renombrados), evitando fugas accidentales de secretos.
 
 ---
 
@@ -388,7 +437,26 @@ cd server
 npm test
 ```
 
-Suite en Jest + Supertest, con `MongoMemoryReplSet` por fichero. Se ejecuta en serie (`--runInBand`) porque varios replica sets en memoria en paralelo compiten por CPU/puertos y provocan timeouts espurios en tests sin relación con el fallo real.
+Suite en Jest + Supertest, con `MongoMemoryReplSet` (no `MongoMemoryServer` - las transacciones multi-documento usadas al guardar resultados y aprobar inscripciones requieren un replica set) instanciado por fichero. Se ejecuta en serie (`--runInBand`) porque varios replica sets en memoria en paralelo compiten por CPU/puertos y provocan timeouts espurios en tests sin relación con el fallo real.
+
+---
+
+## Despliegue con Docker
+
+La aplicación se distribuye como dos imágenes Docker sin privilegios (usuario no-root en ambas):
+
+- `server`: Node.js, corre como usuario `node`.
+- `client`: build estático servido por `nginx-unprivileged` en el puerto 8080 interno.
+
+```bash
+docker compose up -d
+```
+
+`docker-compose.yml` usa las imágenes publicadas en GHCR (`ghcr.io/bg-101/aas-live-server` y `aas-live-client`). El servidor requiere su propio `.env` en `./server/.env`.
+
+### Auto-actualización
+
+Un workflow de GitHub Actions (`docker-release.yml`) construye y publica ambas imágenes automáticamente en cada release publicada en GitHub, **excluyendo pre-releases**. Un conteneder Watchtower monitoriza las imágenes cada 5 minutos y actualiza los servicios etiquetados con `com.centurylabs.watchtower.enable=true` sin intervención manual.
 
 ---
 
