@@ -183,7 +183,9 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
       competition: compId,
       events: event,
       isDeleted: { $ne: true },
-    }).lean();
+    })
+      .select("+birthDate")
+      .lean();
     return filterByAgeGroup(allInEvent, ageGroupKey, ageGroups, comp.startDate)
       .length;
   }
@@ -194,7 +196,11 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
     event,
     round: prevRoundNum,
   })
-    .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
+    .populate({
+      path: "competitor",
+      match: { isDeleted: { $ne: true } },
+      select: "+birthDate",
+    })
     .lean();
 
   const validPrevResults = prevResults
@@ -455,6 +461,20 @@ const resolveCompetitorAge = (competitor, referenceDate) => {
   return competitor?.age ?? null;
 };
 
+/**
+ * Convierte un competidor (con birthDate seleccionado) a su forma pública:
+ * quita birthDate y expone en su lugar `age` ya resuelta en la fecha de
+ * referencia. Permite que el filtrado de grupos de edad en cliente siga
+ * funcionando sin exponer la fecha de nacimiento real en rutas públicas.
+ */
+const toPublicCompetitor = (competitor, referenceDate) => {
+  if (!competitor) return competitor;
+  const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
+  plain.age = resolveCompetitorAge(plain, referenceDate);
+  delete plain.birthDate;
+  return plain;
+};
+
 // Puntos F1 por posición (índice 0 = 1er puesto)
 const F1_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 
@@ -657,6 +677,7 @@ module.exports = {
   resolveLocalAgeGroupId,
   getAgeAtDate,
   resolveCompetitorAge,
+  toPublicCompetitor,
   F1_POINTS,
   filterByAgeGroup,
   getEligibleCountByAgeGroup,

@@ -428,6 +428,36 @@ describe("PUT /api/competitions/:id/round-status", () => {
       .send({ event: "2x2", roundNumber: 1, status: "Finished" });
     expect(res.status).toBe(404);
   });
+
+  test("no permite cerrar una ronda si la anterior no está Finished", async () => {
+    const comp = await makeCompetition({
+      rounds: [
+        {
+          event: "3x3",
+          roundNumber: 1,
+          status: "In Progress",
+          advancementType: "ranking",
+          advancementValue: 16,
+          format: "a",
+          cutoff: 0,
+        },
+        {
+          event: "3x3",
+          roundNumber: 2,
+          status: "In Progress",
+          advancementType: "ranking",
+          advancementValue: 0,
+          format: "a",
+          cutoff: 0,
+        },
+      ],
+    });
+    const res = await request(app)
+      .put(`/api/competitions/${comp._id}/round-status`)
+      .set("Cookie", cookie)
+      .send({ event: "3x3", roundNumber: 2, status: "Finished" });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("DELETE /api/competitions/:id", () => {

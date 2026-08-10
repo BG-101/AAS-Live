@@ -63,14 +63,21 @@ function Projector() {
   // EFECTO: Cargar datos de la competición
   // ============================================================
   useEffect(() => {
+    let cancelled = false;
     axios
       .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
-      .then((res) => setCompetition(res.data))
+      .then((res) => {
+        if (!cancelled) setCompetition(res.data);
+      })
       .catch((err) => {
+        if (cancelled) return;
         console.error(err);
         if (err.code !== "ECONNABORTED")
           toast("No se pudo cargar la competición para el proyector.", "error");
       });
+    return () => {
+      cancelled = true;
+    };
   }, [wcaId, refreshTrigger]);
 
   // ============================================================
@@ -78,15 +85,22 @@ function Projector() {
   // ============================================================
   useEffect(() => {
     if (!compId) return;
+    let cancelled = false;
     setResults([]);
     axios
       .get(`${API_URL}/api/results/${compId}/${event}/${roundNum}`)
-      .then((res) => setResults(res.data))
+      .then((res) => {
+        if (!cancelled) setResults(res.data);
+      })
       .catch((err) => {
+        if (cancelled) return;
         console.error(err);
         if (err.code !== "ECONNABORTED")
           toast("Error al cargar los resultados en vivo.", "error");
       });
+    return () => {
+      cancelled = true;
+    };
   }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================
@@ -94,15 +108,22 @@ function Projector() {
   // ============================================================
   useEffect(() => {
     if (!compId) return;
+    let cancelled = false;
     setCompetitors([]);
     axios
       .get(`${API_URL}/api/competitors/${compId}/eligible/${event}/${roundNum}`)
-      .then((res) => setCompetitors(res.data))
+      .then((res) => {
+        if (!cancelled) setCompetitors(res.data);
+      })
       .catch((err) => {
+        if (cancelled) return;
         console.error(err);
         if (err.code !== "ECONNABORTED")
           toast("Error al cargar los competidores elegibles.", "error");
       });
+    return () => {
+      cancelled = true;
+    };
   }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================

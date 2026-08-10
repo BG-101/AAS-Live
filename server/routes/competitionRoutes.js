@@ -331,6 +331,17 @@ router.put(
       );
 
       if (roundIndex !== -1) {
+        if (status === "Finished" && roundNumber > 1) {
+          const prevRound = comp.rounds.find(
+            (r) => r.event === event && r.roundNumber === roundNumber - 1,
+          );
+          if (prevRound && prevRound.status !== "Finished") {
+            return res.status(400).json({
+              message: `Debes cerrar la Ronda ${roundNumber - 1} antes de cerrar la Ronda ${roundNumber}.`,
+            });
+          }
+        }
+
         comp.rounds[roundIndex].status = status;
         await comp.save();
 

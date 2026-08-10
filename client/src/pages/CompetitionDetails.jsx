@@ -208,20 +208,26 @@ function CompetitionDetails() {
   // Se recarga cuando cambia el ID o se actualiza la competición.
   // ============================================================
   useEffect(() => {
+    let cancelled = false;
     axios
       .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
       .then((res) => {
+        if (cancelled) return;
         setCompetition(res.data);
         // Selecciona el primer evento si no hay uno ya seleccionado
         if (res.data.events && res.data.events.length > 0)
           setSelectedEvent((prev) => (prev ? prev : res.data.events[0]));
       })
       .catch((e) => {
+        if (cancelled) return;
         // Si la competición no existe (404), redirige al inicio
         if (e.response?.status === 404) navigate("/");
         else if (e.code !== "ECONNABORTED")
           toast("Error al cargar la competición.", "error");
       });
+    return () => {
+      cancelled = true;
+    };
   }, [wcaId, refreshCompetitions, navigate]);
 
   // ============================================================
@@ -667,18 +673,24 @@ function CompetitionDetails() {
               `¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
           );
           if (!confirmed) return;
-
-          try {
-            await axios.delete(
-              `${API_URL}/api/competitions/${compId}/round-results-after`,
-              { data: { event: selectedEvent, fromRound: selectedRound } },
-            );
-          } catch {
-            alert("Error al limpiar resultados posteriores.");
-            return;
-          }
         } else {
           if (!window.confirm("¿Marcar como EN CURSO?")) return;
+        }
+
+        // Se llama SIEMPRE que haya rondas posteriores, tengan o no resultados:
+        // borra lo que haya y reabre cualquier ronda Finished posterior para
+        // no dejar un estado inconsciente (ronda cerrada sin datos reales).
+        try {
+          await axios.delete(
+            `${API_URL}/api/competitions/${compId}/round-results-after`,
+            { data: { event: selectedEvent, fromRound: selectedRound } },
+          );
+        } catch (err) {
+          alert(
+            err.response?.data?.message ||
+              "Error al limpiar resultados posteriores.",
+          );
+          return;
         }
       } else {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
@@ -695,7 +707,7 @@ function CompetitionDetails() {
       });
       setRefreshCompetitions((prev) => prev + 1);
     } catch (err) {
-      alert("Error al cambiar estado");
+      alert(err.response?.data?.message || "Error al cambiar estado");
     }
   };
 

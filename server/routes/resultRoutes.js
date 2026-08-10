@@ -20,6 +20,7 @@ const {
   processAdvancements,
   getRoundFormatMeta,
   ROUND_FORMATS,
+  toPublicCompetitor,
 } = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
@@ -56,6 +57,7 @@ router.get(
         .populate({
           path: "competitor",
           match: { isDeleted: { $ne: true } }, // Excluye competidores borrados
+          select: "+birthDate", // Necesario para clasificar por grupo de edad
         })
         .lean(); // Devuelve objetos JS planos para poder modificarlos
 
@@ -68,7 +70,7 @@ router.get(
       );
 
       // Ordena los resultados y marca quién avanza a la siguiente ronda
-      const results = await processAdvancements(
+      const processed = await processAdvancements(
         validResults,
         req.params.compId,
         req.params.event,
@@ -76,6 +78,12 @@ router.get(
         req.params.round,
         comp.ageGroupsEnabled || false,
       );
+
+      // Ruta pública: nunca exponer birthDate, solo la edad ya resuelta
+      const results = processed.map((r) => ({
+        ...r,
+        competitor: toPublicCompetitor(r.competitor, comp.startDate),
+      }));
 
       res.json(results);
     } catch (err) {
@@ -148,6 +156,13 @@ router.post(
       if (!roundConfig) {
         return res.status(404).json({
           message: "La ronda especificada no existe para este evento.",
+        });
+      }
+
+      if (roundConfig.status === "Finished") {
+        return res.status(403).json({
+          message:
+            "Esta ronda está cerrada. Reábrela antes de modificar tiempos.",
         });
       }
 
@@ -287,7 +302,11 @@ router.post(
           event,
           round: roundNum,
         })
-          .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
+          .populate({
+            path: "competitor",
+            match: { isDeleted: { $ne: true } },
+            select: "+birthDate",
+          })
           .lean();
 
         const validUpdated = updatedResults.filter((r) => r.competitor != null);
@@ -305,14 +324,18 @@ router.post(
           compForSocket.ageGroupsEnabled || false,
         );
 
-        const io = req.app.get("socketio");
+        const publicForSocket = processedForSocket.map((r) => ({
+          ...r,
+          competitor: toPublicCompetitor(r.competitor, compForSocket.startDate),
+        }));
 
+        const io = req.app.get("socketio");
         if (io) {
           io.emit("resultado_actualizado", {
             competitionId,
             event,
             round: roundNum,
-            results: processedForSocket, // ← payload completo
+            results: publicForSocket, // ← payload completo
           });
         }
       } catch (socketErr) {

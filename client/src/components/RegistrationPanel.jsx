@@ -98,8 +98,8 @@ export default function RegistrationPanel({
         `${API_URL}/api/registrations/${competitionId}/generate-secret`,
       );
       setNewSecret(data.secret);
-    } catch {
-      toast("Error generando secreto", "error");
+    } catch (err) {
+      toast(err.message?.data?.message || "Error generando secreto", "error");
     }
   };
 

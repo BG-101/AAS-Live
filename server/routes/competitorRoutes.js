@@ -12,7 +12,10 @@ const Competition = require("../models/Competition");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
-const { processAdvancements } = require("../utils/wcaLogic");
+const {
+  processAdvancements,
+  resolveCompetitorAge,
+} = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
   getCompetitorOrFail,
@@ -25,9 +28,10 @@ const {
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
 
-const sanitizeCompetitorPayload = (competitor) => {
+const sanitizeCompetitorPayload = (competitor, referenceDate = null) => {
   if (!competitor) return competitor;
   const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
+  if (referenceDate) plain.age = resolveCompetitorAge(plain, referenceDate);
   delete plain.birthDate;
   return plain;
 };
@@ -69,21 +73,25 @@ router.get(
       const { compId, event, round } = req.params;
       const currentRoundNum = parseInt(round);
 
+      const comp = await getCompetitionOrFail(compId, res);
+      if (!comp) return;
+
       // --- Ronda 1: todos los inscritos en el evento ---
       if (currentRoundNum === 1) {
         const competitors = await Competitor.find({
           competition: compId,
           events: event, // MongoDB busca dentro del array de eventos
           isDeleted: { $ne: true },
-        }).lean();
-        return res.json(competitors.map(sanitizeCompetitorPayload));
+        })
+          .select("+birthDate")
+          .lean();
+        return res.json(
+          competitors.map((c) => sanitizeCompetitorPayload(c, comp.startDate)),
+        );
       }
 
       // --- Ronda > 1: buscar quién avanzó de la ronda anterior ---
       const prevRoundNum = currentRoundNum - 1;
-      const comp = await getCompetitionOrFail(compId, res);
-      if (!comp) return;
-
       // Obtiene la configuración de avance de la ronda anterior
       const prevRound = comp.rounds.find(
         (r) => r.event === event && r.roundNumber === prevRoundNum,
@@ -103,6 +111,7 @@ router.get(
         .populate({
           path: "competitor",
           match: { isDeleted: { $ne: true } }, // Excluye competidores borrados
+          select: "+birthDate",
         })
         .lean(); // Devuelve objetos JS planos (mejor rendimiento)
 
@@ -124,7 +133,7 @@ router.get(
       // Extrae solo los competidores que avanzan
       const eligibleCompetitors = processedResults
         .filter((r) => r.advances)
-        .map((r) => sanitizeCompetitorPayload(r.competitor));
+        .map((r) => sanitizeCompetitorPayload(r.competitor, comp.startDate));
 
       res.json(eligibleCompetitors);
     } catch (err) {

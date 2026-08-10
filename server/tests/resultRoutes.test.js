@@ -338,4 +338,20 @@ describe("POST /api/results - guardado correcto", () => {
     expect(res.body.best).toBe(1200);
     expect(res.body.average).toBe(0);
   });
+
+  test("ronda Finished rechaza nuevos tiempos", async () => {
+    const comp = await makeCompetitionWithRound({ status: "Finished" });
+    const competitor = await makeCompetitor(comp._id);
+    const res = await request(app)
+      .post("/api/results")
+      .set("Cookie", cookie)
+      .send({
+        competitionId: comp._id,
+        competitorId: competitor._id,
+        event: "3x3",
+        round: 1,
+        times: [1000, 1100, 1200, 1300, 1400],
+      });
+    expect(res.status).toBe(403);
+  });
 });
