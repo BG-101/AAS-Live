@@ -12,15 +12,26 @@ const Competition = require("../models/Competition");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 
-const { processAdvancements } = require("../utils/wcaLogic");
+const {
+  processAdvancements,
+  resolveCompetitorAge,
+} = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
   getCompetitorOrFail,
 } = require("../utils/dbHelpers");
+const {
+  editWindowGuard,
+  byBodyCompetitionId,
+  byCompetitorId,
+  isEditWindowOpen,
+} = require("../middleware/editWindow");
+const { sendServerError } = require("../utils/errorResponse");
 
-const sanitizeCompetitorPayload = (competitor) => {
+const sanitizeCompetitorPayload = (competitor, referenceDate = null) => {
   if (!competitor) return competitor;
   const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
+  if (referenceDate) plain.age = resolveCompetitorAge(plain, referenceDate);
   delete plain.birthDate;
   return plain;
 };
@@ -38,7 +49,7 @@ router.get("/:compId", validateObjectId("compId"), async (req, res) => {
     }).lean();
     res.json(competitors.map(sanitizeCompetitorPayload));
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -62,21 +73,25 @@ router.get(
       const { compId, event, round } = req.params;
       const currentRoundNum = parseInt(round);
 
+      const comp = await getCompetitionOrFail(compId, res);
+      if (!comp) return;
+
       // --- Ronda 1: todos los inscritos en el evento ---
       if (currentRoundNum === 1) {
         const competitors = await Competitor.find({
           competition: compId,
           events: event, // MongoDB busca dentro del array de eventos
           isDeleted: { $ne: true },
-        }).lean();
-        return res.json(competitors.map(sanitizeCompetitorPayload));
+        })
+          .select("+birthDate")
+          .lean();
+        return res.json(
+          competitors.map((c) => sanitizeCompetitorPayload(c, comp.startDate)),
+        );
       }
 
       // --- Ronda > 1: buscar quién avanzó de la ronda anterior ---
       const prevRoundNum = currentRoundNum - 1;
-      const comp = await getCompetitionOrFail(compId, res);
-      if (!comp) return;
-
       // Obtiene la configuración de avance de la ronda anterior
       const prevRound = comp.rounds.find(
         (r) => r.event === event && r.roundNumber === prevRoundNum,
@@ -96,6 +111,7 @@ router.get(
         .populate({
           path: "competitor",
           match: { isDeleted: { $ne: true } }, // Excluye competidores borrados
+          select: "+birthDate",
         })
         .lean(); // Devuelve objetos JS planos (mejor rendimiento)
 
@@ -117,11 +133,35 @@ router.get(
       // Extrae solo los competidores que avanzan
       const eligibleCompetitors = processedResults
         .filter((r) => r.advances)
-        .map((r) => sanitizeCompetitorPayload(r.competitor));
+        .map((r) => sanitizeCompetitorPayload(r.competitor, comp.startDate));
 
       res.json(eligibleCompetitors);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
+    }
+  },
+);
+
+// ============================================================
+// GET /api/competitors/:compId/full
+// Igual que GET /:compId pero incluye birthDate. Solo para el
+// editor de competidores (SuperAdmin/Delegado).
+// ============================================================
+router.get(
+  "/:compId/full",
+  validateObjectId("compId"),
+  auth(["SuperAdmin", "Delegado"]),
+  async (req, res) => {
+    try {
+      const competitors = await Competitor.find({
+        competition: req.params.compId,
+        isDeleted: { $ne: true },
+      })
+        .select("+birthDate")
+        .lean();
+      res.json(competitors);
+    } catch (err) {
+      sendServerError(res, err);
     }
   },
 );
@@ -137,186 +177,199 @@ router.get(
 //
 // Requiere rol SuperAdmin o Delegado.
 // ============================================================
-router.post("/", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
-  try {
-    const compId = req.body.competitionId;
-    const comp = await getCompetitionOrFail(req.body.competitionId, res);
-    if (!comp) return;
+router.post(
+  "/",
+  auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byBodyCompetitionId),
+  async (req, res) => {
+    try {
+      const compId = req.body.competitionId;
+      const comp = await getCompetitionOrFail(req.body.competitionId, res);
+      if (!comp) return;
 
-    // Comprueba que no se haya alcanzado el límite de competidores
-    const currentCount = await Competitor.countDocuments({
-      competition: compId,
-      isDeleted: { $ne: true },
-    });
-    if (currentCount >= comp.competitorLimit) {
-      return res.status(400).json({
-        message: `¡Aforo completo! El límite es de ${comp.competitorLimit} competidores.`,
+      // Comprueba que no se haya alcanzado el límite de competidores
+      const currentCount = await Competitor.countDocuments({
+        competition: compId,
+        isDeleted: { $ne: true },
       });
-    }
-
-    // Comprueba que no existe ya un competidor con el mismo nombre (activo)
-    const existingCompetitor = await Competitor.findOne({
-      name: req.body.name.trim(),
-      competition: compId,
-      isDeleted: { $ne: true },
-    });
-
-    if (existingCompetitor) {
-      return res.status(400).json({
-        message: "¡Error! Este competidor ya está inscrito en este torneo.",
-      });
-    }
-
-    let newCompetitor;
-    let createdSuccessfully = false;
-    for (let attempt = 0; attempt <= 4; attempt++) {
-      const last = await Competitor.findOne({ competition: compId })
-        .sort({ competitorNumber: -1 })
-        .lean();
-      const nextNumber = (last?.competitorNumber ?? 0) + 1;
-
-      try {
-        newCompetitor = await new Competitor({
-          competitorNumber: nextNumber,
-          name: req.body.name.trim(),
-          wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
-          age: req.body.age || null,
-          birthDate: req.body.birthDate || null,
-          locality: req.body.locality ? req.body.locality.trim() : "",
-          competition: compId,
-          events: req.body.events,
-        }).save();
-        createdSuccessfully = true;
-        break;
-      } catch (saveErr) {
-        if (saveErr.code === 11000 && saveErr.keyPattern?.competitorNumber) {
-          if (attempt === 4)
-            throw new Error(
-              "Conflicto de número de competidor tras 5 intentos.",
-            );
-          continue;
-        }
-        throw saveErr;
-      }
-    }
-
-    // ============================================================
-    // AUTO-INSCRIPCIÓN EN SERIE
-    // Si la competición pertenece a una serie, inscribe al
-    // competidor (con los mismos datos y eventos) en todas las
-    // demás competiciones de la serie.
-    // Los fallos son silenciosos para no bloquear la inscripción principal.
-    // ============================================================
-    if (comp.series && comp.series.trim() !== "") {
-      try {
-        let mirroredCreated = false;
-        const seriesComps = await Competition.find({
-          series: comp.series,
-          _id: { $ne: compId },
-          isDeleted: { $ne: true },
+      if (currentCount >= comp.competitorLimit) {
+        return res.status(400).json({
+          message: `¡Aforo completo! El límite es de ${comp.competitorLimit} competidores.`,
         });
-
-        for (const seriesComp of seriesComps) {
-          try {
-            let mirroredCreatedThisComp = false;
-            // No duplicar si ya existe (activo) en esa competición
-            const alreadyExists = await Competitor.findOne({
-              name: req.body.name.trim(),
-              competition: seriesComp._id,
-              isDeleted: { $ne: true },
-            });
-            if (alreadyExists) continue;
-
-            // Respetar el límite de competidores de la competición destino
-            const countInTarget = await Competitor.countDocuments({
-              competition: seriesComp._id,
-              isDeleted: { $ne: true },
-            });
-            if (countInTarget >= seriesComp.competitorLimit) {
-              console.warn(
-                `Auto-inscripción omitida en "${seriesComp.name}": aforo completo.`,
-              );
-              continue;
-            }
-
-            for (let attempt = 0; attempt <= 2; attempt++) {
-              const lastInTarget = await Competitor.findOne({
-                competition: seriesComp._id,
-              })
-                .sort({ competitorNumber: -1 })
-                .lean();
-              const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
-              try {
-                const mirrored = new Competitor({
-                  competitorNumber: nextNum,
-                  name: req.body.name.trim(),
-                  wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
-                  age: req.body.age || null,
-                  birthDate: req.body.birthDate || null,
-                  locality: req.body.locality ? req.body.locality.trim() : "",
-                  competition: seriesComp._id,
-                  events: req.body.events,
-                });
-                await mirrored.save();
-                mirroredCreatedThisComp = true;
-                break;
-              } catch (innerErr) {
-                if (
-                  innerErr.code === 11000 &&
-                  innerErr.keyPattern?.competitorNumber
-                ) {
-                  if (attempt === 2) {
-                    console.warn(
-                      `Número duplicado en serie "${seriesComp.name}" tras 3 intentos, omitido.`,
-                    );
-                    break;
-                  }
-                  continue;
-                }
-                throw innerErr;
-              }
-            }
-
-            if (mirroredCreatedThisComp) {
-              const io = req.app.get("socketio");
-              if (io) {
-                io.emit("competidor_actualizado", {
-                  competitionId: seriesComp._id.toString(),
-                });
-              }
-            }
-          } catch (innerErr) {
-            console.error(
-              `Auto-inscripción fallida en "${seriesComp.name}":`,
-              innerErr.message,
-            );
-          }
-        }
-      } catch (seriesErr) {
-        console.error(
-          "Error buscando competiciones de la serie:",
-          seriesErr.message,
-        );
       }
-    }
 
-    const io = req.app.get("socketio");
-    if (io && createdSuccessfully) {
-      io.emit("competidor_actualizado", { competitionId: compId });
-    }
-
-    res.status(201).json(newCompetitor);
-  } catch (err) {
-    // Error 11000 = violación de índice único (nombre duplicado en MongoDB)
-    if (err.code === 11000) {
-      return res.status(400).json({
-        message:
-          "¡Error! Este competidor ya está inscrito (Detectado por la BD).",
+      // Comprueba que no existe ya un competidor con el mismo nombre (activo)
+      const existingCompetitor = await Competitor.findOne({
+        name: req.body.name.trim(),
+        competition: compId,
+        isDeleted: { $ne: true },
       });
+
+      if (existingCompetitor) {
+        return res.status(400).json({
+          message: "¡Error! Este competidor ya está inscrito en este torneo.",
+        });
+      }
+
+      let newCompetitor;
+      let createdSuccessfully = false;
+      for (let attempt = 0; attempt <= 4; attempt++) {
+        const last = await Competitor.findOne({ competition: compId })
+          .sort({ competitorNumber: -1 })
+          .lean();
+        const nextNumber = (last?.competitorNumber ?? 0) + 1;
+
+        try {
+          newCompetitor = await new Competitor({
+            competitorNumber: nextNumber,
+            name: req.body.name.trim(),
+            wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
+            age: req.body.age || null,
+            birthDate: req.body.birthDate || null,
+            locality: req.body.locality ? req.body.locality.trim() : "",
+            competition: compId,
+            events: req.body.events,
+          }).save();
+          createdSuccessfully = true;
+          break;
+        } catch (saveErr) {
+          if (saveErr.code === 11000 && saveErr.keyPattern?.competitorNumber) {
+            if (attempt === 4)
+              throw new Error(
+                "Conflicto de número de competidor tras 5 intentos.",
+              );
+            continue;
+          }
+          throw saveErr;
+        }
+      }
+
+      // ============================================================
+      // AUTO-INSCRIPCIÓN EN SERIE
+      // Si la competición pertenece a una serie, inscribe al
+      // competidor (con los mismos datos y eventos) en todas las
+      // demás competiciones de la serie.
+      // Los fallos son silenciosos para no bloquear la inscripción principal.
+      // ============================================================
+      if (comp.series && comp.series.trim() !== "") {
+        try {
+          let mirroredCreated = false;
+          const seriesComps = await Competition.find({
+            series: comp.series,
+            _id: { $ne: compId },
+            isDeleted: { $ne: true },
+          });
+
+          for (const seriesComp of seriesComps) {
+            try {
+              let mirroredCreatedThisComp = false;
+
+              if (!isEditWindowOpen(seriesComp, req.user?.role)) {
+                console.warn(
+                  `Auto-inscripción omitida en "${seriesComp.name}": fuera de la ventana de edición.`,
+                );
+                continue;
+              }
+
+              // No duplicar si ya existe (activo) en esa competición
+              const alreadyExists = await Competitor.findOne({
+                name: req.body.name.trim(),
+                competition: seriesComp._id,
+                isDeleted: { $ne: true },
+              });
+              if (alreadyExists) continue;
+
+              // Respetar el límite de competidores de la competición destino
+              const countInTarget = await Competitor.countDocuments({
+                competition: seriesComp._id,
+                isDeleted: { $ne: true },
+              });
+              if (countInTarget >= seriesComp.competitorLimit) {
+                console.warn(
+                  `Auto-inscripción omitida en "${seriesComp.name}": aforo completo.`,
+                );
+                continue;
+              }
+
+              for (let attempt = 0; attempt <= 2; attempt++) {
+                const lastInTarget = await Competitor.findOne({
+                  competition: seriesComp._id,
+                })
+                  .sort({ competitorNumber: -1 })
+                  .lean();
+                const nextNum = (lastInTarget?.competitorNumber ?? 0) + 1;
+                try {
+                  const mirrored = new Competitor({
+                    competitorNumber: nextNum,
+                    name: req.body.name.trim(),
+                    wcaId: req.body.wcaId ? req.body.wcaId.trim() : "",
+                    age: req.body.age || null,
+                    birthDate: req.body.birthDate || null,
+                    locality: req.body.locality ? req.body.locality.trim() : "",
+                    competition: seriesComp._id,
+                    events: req.body.events,
+                  });
+                  await mirrored.save();
+                  mirroredCreatedThisComp = true;
+                  break;
+                } catch (innerErr) {
+                  if (
+                    innerErr.code === 11000 &&
+                    innerErr.keyPattern?.competitorNumber
+                  ) {
+                    if (attempt === 2) {
+                      console.warn(
+                        `Número duplicado en serie "${seriesComp.name}" tras 3 intentos, omitido.`,
+                      );
+                      break;
+                    }
+                    continue;
+                  }
+                  throw innerErr;
+                }
+              }
+
+              if (mirroredCreatedThisComp) {
+                const io = req.app.get("socketio");
+                if (io) {
+                  io.emit("competidor_actualizado", {
+                    competitionId: seriesComp._id.toString(),
+                  });
+                }
+              }
+            } catch (innerErr) {
+              console.error(
+                `Auto-inscripción fallida en "${seriesComp.name}":`,
+                innerErr.message,
+              );
+            }
+          }
+        } catch (seriesErr) {
+          console.error(
+            "Error buscando competiciones de la serie:",
+            seriesErr.message,
+          );
+        }
+      }
+
+      const io = req.app.get("socketio");
+      if (io && createdSuccessfully) {
+        io.emit("competidor_actualizado", { competitionId: compId });
+      }
+
+      res.status(201).json(newCompetitor);
+    } catch (err) {
+      // Error 11000 = violación de índice único (nombre duplicado en MongoDB)
+      if (err.code === 11000) {
+        return res.status(400).json({
+          message:
+            "¡Error! Este competidor ya está inscrito (Detectado por la BD).",
+        });
+      }
+      res.status(400).json({ message: err.message });
     }
-    res.status(400).json({ message: err.message });
-  }
-});
+  },
+);
 
 // ============================================================
 // DELETE /api/competitors/:id
@@ -330,6 +383,7 @@ router.delete(
   "/:id",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byCompetitorId()),
   async (req, res) => {
     try {
       const comp = await getCompetitorOrFail(req.params.id, null, res);
@@ -352,7 +406,7 @@ router.delete(
 
       res.json({ message: "Competidor movido a la papelera" });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -397,7 +451,7 @@ router.delete(
         message: `Papelera vaciada. ${deletedCount.deletedCount} competidores eliminados físicamente.`,
       });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -411,6 +465,7 @@ router.put(
   "/:id",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byCompetitorId()),
   async (req, res) => {
     try {
       const { name, wcaId, age, birthDate, locality, events } = req.body;
@@ -460,7 +515,7 @@ router.put(
 
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );
@@ -475,6 +530,7 @@ router.patch(
   "/:id/withdraw",
   validateObjectId(),
   auth(["SuperAdmin", "Delegado"]),
+  editWindowGuard(byCompetitorId()),
   async (req, res) => {
     try {
       const { event, fromRound, withdrawn } = req.body;
@@ -508,7 +564,7 @@ router.patch(
 
       res.json(comp);
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      sendServerError(res, err);
     }
   },
 );

@@ -160,4 +160,55 @@ describe("GET /api/sor/series/:seriesName", () => {
     expect(res.body.ageGroupsEnabled).toBe(true);
     expect(res.body.ageGroupsHomogeneus).toBe(false);
   });
+
+  test("labels de grupo de edad duplicados en la serie: resuelve el grupo local correcto por firma completa", async () => {
+    const seriesName = `LigaDup${Date.now()}`;
+    const compA = await makeCompetition({
+      series: seriesName,
+      ageGroupsEnabled: true,
+      ageGroups: [
+        { label: "Cadete", minAge: 11, maxAge: 14 },
+        { label: "Cadete", minAge: 15, maxAge: 17 },
+      ],
+      rounds: [
+        { event: "3x3", roundNumber: 1, format: "a", status: "Finished" },
+      ],
+    });
+    const compB = await makeCompetition({
+      series: seriesName,
+      ageGroupsEnabled: true,
+      // Mismos labels, orden de declaración invertido -> misma firma, distinto _id local
+      ageGroups: [
+        { label: "Cadete", minAge: 15, maxAge: 17 },
+        { label: "Cadete", minAge: 11, maxAge: 14 },
+      ],
+      rounds: [
+        { event: "3x3", roundNumber: 1, format: "a", status: "Finished" },
+      ],
+    });
+
+    const jovenA = await makeCompetitor(compA._id, 1, "Joven", {
+      birthDate: "2013-01-01",
+    }); // ~13
+    await makeResult(compA._id, jovenA._id, "3x3", 1, 900, 950);
+    const jovenB = await makeCompetitor(compB._id, 1, "Joven", {
+      birthDate: "2013-01-01",
+    });
+    await makeResult(compB._id, jovenB._id, "3x3", 1, 950, 1000);
+
+    const seriesRes = await request(app).get(`/api/sor/series/${seriesName}`);
+    const group1114 = seriesRes.body.ageGroups.find((g) => g.minAge === 11);
+    expect(group1114).toBeDefined();
+
+    const filtered = await request(app).get(
+      `/api/sor/series/${seriesName}?ageGroup=${group1114._id}`,
+    );
+    expect(filtered.status).toBe(200);
+    const entry = filtered.body.rankings.find((r) => r.name === "Joven");
+    expect(entry).toBeDefined();
+    // Debe aparecer con datos de AMBAS competiciones bajo el grupo 11-14,
+    // no filtrado incorrectamente al grupo 15-17 por colisión de label
+    expect(entry.perComp[compA._id.toString()]).toBeDefined();
+    expect(entry.perComp[compB._id.toString()]).toBeDefined();
+  });
 });

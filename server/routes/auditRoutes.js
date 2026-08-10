@@ -8,6 +8,7 @@ const express = require("express");
 const router = express.Router();
 const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/auth");
+const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
 // GET /api/audit/:compId
@@ -24,7 +25,7 @@ router.get("/:compId", auth(["SuperAdmin", "Delegado"]), async (req, res) => {
     });
     res.json(logs);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 

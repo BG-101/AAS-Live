@@ -1,6 +1,6 @@
 // ============================================================
 // COMPONENTE: ToastContainer
-// Renderiza la interfaz y la l?gica de este componente.
+// Renderiza la interfaz y la lógica de este componente.
 // ============================================================
 
 import { useState, useEffect } from "react";

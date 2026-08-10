@@ -14,9 +14,23 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { createSocket } from "../utils/socket";
-import { formatTime, formatWCATimesArray } from "../utils/formatters";
+import {
+  formatTime,
+  formatWCATimesArray,
+  getRoundFormatMeta,
+  shouldUseBestAsResult,
+} from "../utils/formatters";
 import { API_URL } from "../utils/api";
+import { toast } from "../utils/toast";
 
+/**
+ * Displays live competition results in list or podium view.
+ *
+ * Loads competition and round data, refreshes results in real time, and provides
+ * automatic view transitions, scrolling, and fullscreen controls.
+ *
+ * @return {JSX.Element} The projector results view.
+ */
 function Projector() {
   // Parámetros de la URL: /projector/:id/:event/:round
   const { wcaId, event, round } = useParams();
@@ -49,10 +63,21 @@ function Projector() {
   // EFECTO: Cargar datos de la competición
   // ============================================================
   useEffect(() => {
+    let cancelled = false;
     axios
       .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
-      .then((res) => setCompetition(res.data))
-      .catch(console.error);
+      .then((res) => {
+        if (!cancelled) setCompetition(res.data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        if (err.code !== "ECONNABORTED")
+          toast("No se pudo cargar la competición para el proyector.", "error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [wcaId, refreshTrigger]);
 
   // ============================================================
@@ -60,11 +85,22 @@ function Projector() {
   // ============================================================
   useEffect(() => {
     if (!compId) return;
+    let cancelled = false;
     setResults([]);
     axios
       .get(`${API_URL}/api/results/${compId}/${event}/${roundNum}`)
-      .then((res) => setResults(res.data))
-      .catch((err) => console.error(err));
+      .then((res) => {
+        if (!cancelled) setResults(res.data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        if (err.code !== "ECONNABORTED")
+          toast("Error al cargar los resultados en vivo.", "error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================
@@ -72,11 +108,22 @@ function Projector() {
   // ============================================================
   useEffect(() => {
     if (!compId) return;
+    let cancelled = false;
     setCompetitors([]);
     axios
       .get(`${API_URL}/api/competitors/${compId}/eligible/${event}/${roundNum}`)
-      .then((res) => setCompetitors(res.data))
-      .catch(console.error);
+      .then((res) => {
+        if (!cancelled) setCompetitors(res.data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        if (err.code !== "ECONNABORTED")
+          toast("Error al cargar los competidores elegibles.", "error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [compId, event, roundNum, refreshTrigger]);
 
   // ============================================================
@@ -127,7 +174,7 @@ function Projector() {
       (r) => r.event === event && r.roundNumber === roundNum,
     );
     const isFinished = currentRoundObj?.status === "Finished";
-    const isFinalRound = parseInt(currentRoundObj?.advancementValue) === 0;
+    const isFinalRound = Number(currentRoundObj?.advancementValue) === 0;
 
     if (viewMode === "podium" && isFinished && isFinalRound) {
       const timer = setTimeout(() => {
@@ -169,8 +216,7 @@ function Projector() {
             (r) => r.event === event && r.roundNumber === roundNum,
           );
           const isFinished = currentRoundObj?.status === "Finished";
-          const isFinalRound =
-            parseInt(currentRoundObj?.advancementValue) === 0;
+          const isFinalRound = Number(currentRoundObj?.advancementValue) === 0;
 
           if (isFinished && isFinalRound) {
             // Ronda final cerrada: muestra el podio
@@ -221,8 +267,8 @@ function Projector() {
   );
   const roundFormat = currentRoundObj?.format || "a";
   const isFinished = currentRoundObj?.status === "Finished";
-  const isFinalRound = currentRoundObj?.advancementValue === 0;
-  const attemptsCount = roundFormat === "a" ? 5 : 3;
+  const isFinalRound = Number(currentRoundObj?.advancementValue) === 0;
+  const attemptsCount = getRoundFormatMeta(roundFormat).attempts;
 
   // Estadísticas de progreso
   const participantes = competitors.length;
@@ -320,7 +366,9 @@ function Projector() {
                 </p>
                 <p className="text-3xl text-gray-400 font-mono mt-2 font-bold">
                   {formatTime(
-                    roundFormat === "b" ? silver.best : silver.average,
+                    shouldUseBestAsResult(roundFormat)
+                      ? silver.best
+                      : silver.average,
                   )}
                 </p>
               </div>
@@ -354,7 +402,11 @@ function Projector() {
                   {gold.competitor.name}
                 </p>
                 <p className="text-4xl text-gray-300 font-mono mt-2 font-bold">
-                  {formatTime(roundFormat === "b" ? gold.best : gold.average)}
+                  {formatTime(
+                    shouldUseBestAsResult(roundFormat)
+                      ? gold.best
+                      : gold.average,
+                  )}
                 </p>
               </div>
               <div
@@ -388,7 +440,9 @@ function Projector() {
                 </p>
                 <p className="text-3xl text-gray-400 font-mono mt-2 font-bold">
                   {formatTime(
-                    roundFormat === "b" ? bronze.best : bronze.average,
+                    shouldUseBestAsResult(roundFormat)
+                      ? bronze.best
+                      : bronze.average,
                   )}
                 </p>
               </div>
@@ -480,11 +534,7 @@ function Projector() {
               ))}
               {/* Columna de resultado */}
               <th className="py-4 text-right pr-4 text-almeria-orange">
-                {roundFormat === "a"
-                  ? "Ao5"
-                  : roundFormat === "m"
-                    ? "Mo3"
-                    : "Single"}
+                {getRoundFormatMeta(roundFormat).label}
               </th>
             </tr>
           </thead>
@@ -548,7 +598,11 @@ function Projector() {
                     </td>
                   ))}
                   <td className="py-6 text-right font-black font-mono text-3xl pr-4">
-                    {formatTime(roundFormat === "b" ? res.best : res.average)}
+                    {formatTime(
+                      shouldUseBestAsResult(roundFormat)
+                        ? res.best
+                        : res.average,
+                    )}
                   </td>
                 </tr>
               );

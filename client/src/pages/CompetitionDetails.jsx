@@ -35,6 +35,7 @@ import {
   formatWCATimesArray,
   formatDateRange,
   resolveCompetitorAge,
+  getRoundFormatMeta,
 } from "../utils/formatters";
 
 const DEFAULT_AGE_GROUPS_CLIENT = [
@@ -79,6 +80,11 @@ const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {
   return false;
 };
 
+/**
+ * Displays and manages a competition's events, rounds, competitors, and results.
+ *
+ * @returns {JSX.Element} The competition management and results interface.
+ */
 function CompetitionDetails() {
   // Obtiene el ID de la competición desde la URL (/competition/:id)
   const { wcaId } = useParams();
@@ -202,18 +208,26 @@ function CompetitionDetails() {
   // Se recarga cuando cambia el ID o se actualiza la competición.
   // ============================================================
   useEffect(() => {
+    let cancelled = false;
     axios
       .get(`${API_URL}/api/competitions/by-wca/${wcaId}`)
       .then((res) => {
+        if (cancelled) return;
         setCompetition(res.data);
         // Selecciona el primer evento si no hay uno ya seleccionado
         if (res.data.events && res.data.events.length > 0)
           setSelectedEvent((prev) => (prev ? prev : res.data.events[0]));
       })
       .catch((e) => {
+        if (cancelled) return;
         // Si la competición no existe (404), redirige al inicio
         if (e.response?.status === 404) navigate("/");
+        else if (e.code !== "ECONNABORTED")
+          toast("Error al cargar la competición.", "error");
       });
+    return () => {
+      cancelled = true;
+    };
   }, [wcaId, refreshCompetitions, navigate]);
 
   // ============================================================
@@ -450,7 +464,7 @@ function CompetitionDetails() {
   const isRoundFinished = currentRoundObj?.status === "Finished";
   const roundFormat = currentRoundObj?.format || "a"; // "a" (Ao5), "m" (Mo3), "b" (Bo3)
   const roundCutoff = currentRoundObj?.cutoff || 0; // Cutoff en centésimas
-  const attemptsCount = roundFormat === "a" ? 5 : 3; // Número de intentos según formato
+  const attemptsCount = getRoundFormatMeta(roundFormat).attempts; // Número de intentos según formato
 
   /**
    * Calcula el índice límite del cutoff:
@@ -659,24 +673,30 @@ function CompetitionDetails() {
               `¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
           );
           if (!confirmed) return;
-
-          try {
-            await axios.delete(
-              `${API_URL}/api/competitions/${compId}/round-results-after`,
-              { data: { event: selectedEvent, fromRound: selectedRound } },
-            );
-          } catch {
-            alert("Error al limpiar resultados posteriores.");
-            return;
-          }
         } else {
           if (!window.confirm("¿Marcar como EN CURSO?")) return;
+        }
+
+        // Se llama SIEMPRE que haya rondas posteriores, tengan o no resultados:
+        // borra lo que haya y reabre cualquier ronda Finished posterior para
+        // no dejar un estado inconsciente (ronda cerrada sin datos reales).
+        try {
+          await axios.delete(
+            `${API_URL}/api/competitions/${compId}/round-results-after`,
+            { data: { event: selectedEvent, fromRound: selectedRound } },
+          );
+        } catch (err) {
+          alert(
+            err.response?.data?.message ||
+              "Error al limpiar resultados posteriores.",
+          );
+          return;
         }
       } else {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
       }
     } else {
-      if (!window.confirm("¿Marcar como FINALIADA?")) return;
+      if (!window.confirm("¿Marcar como FINALIZADA?")) return;
     }
 
     try {
@@ -687,7 +707,7 @@ function CompetitionDetails() {
       });
       setRefreshCompetitions((prev) => prev + 1);
     } catch (err) {
-      alert("Error al cambiar estado");
+      alert(err.response?.data?.message || "Error al cambiar estado");
     }
   };
 
@@ -764,6 +784,13 @@ function CompetitionDetails() {
       );
     return 0;
   }, [currentRoundObj, participantes]);
+
+  const sorRoundsFinished = useMemo(() => {
+    if (!competition) return false;
+    return competition.events.every((ev) =>
+      competition.rounds.some((r) => r.event === ev && r.status === "Finished"),
+    );
+  }, [competition]);
 
   // ============================================================
   // PANTALLA DE CARGA
@@ -1201,7 +1228,7 @@ function CompetitionDetails() {
               <SORTable
                 compId={compId}
                 ageGroupsEnabled={competition.ageGroupsEnabled}
-                isRoundFinished={isRoundFinished}
+                isRoundFinished={sorRoundsFinished}
               />
             </div>
           ) : (
@@ -1253,7 +1280,7 @@ function CompetitionDetails() {
                   </button>
                 )}
 
-                {/* Botón exportar CSV - visible para todos cuand hay resultados */}
+                {/* Botón exportar CSV - visible para todos cuando hay resultados */}
                 {displayResults.length > 0 && (
                   <button
                     onClick={() =>
@@ -1279,7 +1306,7 @@ function CompetitionDetails() {
                 attemptsCount={attemptsCount}
                 roundFormat={roundFormat}
                 isRoundFinished={isRoundFinished}
-                isFinalRound={parseInt(currentRoundObj?.advancementValue) === 0}
+                isFinalRound={Number(currentRoundObj?.advancementValue) === 0}
                 faltantes={faltantes}
                 participantesQueClasifican={participantesQueClasifican}
                 selectedRound={selectedRound}

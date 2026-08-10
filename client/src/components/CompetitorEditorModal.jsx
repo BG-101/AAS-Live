@@ -11,11 +11,14 @@ import { API_URL } from "../utils/api";
 import { getAgeAtDate } from "../utils/formatters";
 
 /**
- * @param {boolean} show - Si es true, muestra el modal
- * @param {Function} onClose - Callback para cerrar el modal
- * @param {string} competitionId - ID de la competición
- * @param {string[]} competitionEvents - Eventos disponibles en la competición
- * @param {Function} onSaved - Callback tras guardar (para refrescar datos del padre)
+ * Display an editable modal for managing competitors in a competition.
+ * @param {boolean} show - Whether to display the modal.
+ * @param {Function} onClose - Callback invoked when the modal is closed.
+ * @param {string} competitionId - Identifier of the competition whose competitors are edited.
+ * @param {string[]} competitionEvents - Events available for competitor selection.
+ * @param {string|Date} competitionStartDate - Competition date used to calculate competitor ages.
+ * @param {Function} onSaved - Callback invoked after a competitor is saved successfully.
+ * @return {JSX.Element|null} The competitor editor modal, or `null` when it is hidden.
  */
 export default function CompetitorEditorModal({
   show,
@@ -35,7 +38,7 @@ export default function CompetitorEditorModal({
     if (!show || !competitionId) return;
     setLoading(true);
     axios
-      .get(`${API_URL}/api/competitors/${competitionId}`)
+      .get(`${API_URL}/api/competitors/${competitionId}/full`)
       .then((res) => {
         // Ordena por número de competidor
         const sorted = res.data.sort(

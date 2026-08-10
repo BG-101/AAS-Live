@@ -3,6 +3,8 @@
 // Comprueba el comportamiento esperado de esta funcionalidad.
 // ============================================================
 
+const Competition = require("../models/Competition");
+const Competitor = require("../models/Competitor");
 const {
   DEFAULT_AGE_GROUPS,
   resolveAgeGroups,

@@ -18,6 +18,7 @@ const {
 } = require("../utils/parseEnvInt");
 const { validateSecretStrength } = require("../utils/secretStrength");
 const { isValidUsername } = require("../utils/validateUsername");
+const { sendServerError } = require("../utils/errorResponse");
 
 const resolveJwtExpiresIn = (raw) => {
   if (!raw) return "48h";
@@ -115,7 +116,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // También devuelve los datos del usuario en el body del response
     res.json({ role: user.role, username: user.username });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -219,7 +220,7 @@ router.post("/setup", async (req, res) => {
     const usernameToken = await User.findOne({ username: defaultUsername });
     if (usernameToken) {
       return res.status(500).json({
-        message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) y existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
+        message: `El usuario '${defaultUsername}' (DEFAULT_ADMIN_USERNAME) ya existe. Cambia DEFAULT_ADMIN_USERNAME y reintenta.`,
       });
     }
 
@@ -253,7 +254,7 @@ router.post("/setup", async (req, res) => {
         });
       }
     }
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -310,7 +311,7 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({ message: "El usuario ya existe." });
     }
-    res.status(500).json({ message: err.message });
+    sendServerError(res, err);
   }
 });
 

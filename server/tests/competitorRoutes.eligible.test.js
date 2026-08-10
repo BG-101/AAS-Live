@@ -82,6 +82,48 @@ describe("GET /api/competitors/:compId/eligible/:event/:round - Ronda 1", () => 
     );
     expect(res.body).toEqual([]);
   });
+
+  test("clasifica correctamente por grupo de edad cuando birthDate solo está en BD (select:false)", async () => {
+    const comp = await Competition.create({
+      wcaId: `AgeSelect${Date.now()}`,
+      name: "Test",
+      startDate: "2026-06-01",
+      endDate: "2026-06-01",
+      location: "Test",
+      events: ["3x3"],
+      ageGroupsEnabled: true,
+      rounds: [
+        {
+          event: "3x3",
+          roundNumber: 1,
+          format: "a",
+          status: "Finished",
+          advancementType: "ranking",
+          advancementValue: 1,
+        },
+      ],
+    });
+    const peque = await Competitor.create({
+      competitorNumber: 1,
+      name: "Peque",
+      competition: comp._id,
+      events: ["3x3"],
+      birthDate: "2018-01-01",
+    });
+    await Result.create({
+      competition: comp._id,
+      competitor: peque._id,
+      event: "3x3",
+      round: 1,
+      times: [900],
+      best: 900,
+      average: 950,
+    });
+
+    const res = await request(app).get(`/api/results/${comp._id}/3x3/1`);
+    expect(res.body[0].competitor.age).toBe(8); // Resuelto, no birthDate crudo
+    expect(res.body[0].competitor.birthDate).toBeUndefined();
+  });
 });
 
 describe("GET /api/competitors/:compId/eligible/:event/:round - Ronda > 1", () => {
