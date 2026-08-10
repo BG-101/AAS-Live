@@ -99,6 +99,8 @@ function Home() {
 
   const isWritableAdmin =
     user?.role === "SuperAdmin" || user?.role === "Delegado";
+  const isTimekeeper = user?.role === "Metetiempos";
+  const canEnterTimes = isWritableAdmin || isTimekeeper;
 
   const roleRef = useRef(user?.role);
   useEffect(() => {
@@ -430,7 +432,7 @@ function Home() {
 
             {/* Botón de logout (si autenticado) o login (si no) */}
             {user ? (
-              isWritableAdmin ? (
+              canEnterTimes ? (
                 <button
                   onClick={handleLogout}
                   className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"

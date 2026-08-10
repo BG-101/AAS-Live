@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema({
   //   "Espectador"  → Solo lectura, pensado para la pantalla del proyector
   role: {
     type: String,
-    enum: ["SuperAdmin", "Delegado", "Espectador"],
+    enum: ["SuperAdmin", "Delegado", "Espectador", "Metetiempos"],
     default: "Delegado",
   },
 });

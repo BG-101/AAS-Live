@@ -108,7 +108,7 @@ router.get(
 // ============================================================
 router.post(
   "/",
-  auth(["SuperAdmin", "Delegado"]),
+  auth(["SuperAdmin", "Delegado", "Metetiempos"]),
   editWindowGuard(byBodyCompetitionId),
   async (req, res) => {
     // Extrae los datos del body de la petición

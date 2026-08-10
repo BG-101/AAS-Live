@@ -67,6 +67,7 @@ export default function RegisterModal({
             <option value="Espectador">
               Pantalla Proyector (Solo Lectura)
             </option>
+            <option value="Metetiempos">Metetiempos (Solo Tiempos)</option>
           </select>
 
           {/* Botones de acción */}

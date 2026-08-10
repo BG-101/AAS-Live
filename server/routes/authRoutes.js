@@ -267,7 +267,12 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
-    const ALLOWED_ROLES = ["SuperAdmin", "Delegado", "Espectador"];
+    const ALLOWED_ROLES = [
+      "SuperAdmin",
+      "Delegado",
+      "Espectador",
+      "Metetiempos",
+    ];
     if (role && !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ message: "Rol no válido." });
     }
