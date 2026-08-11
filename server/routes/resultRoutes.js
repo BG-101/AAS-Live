@@ -30,6 +30,7 @@ const {
   editWindowGuard,
   byBodyCompetitionId,
 } = require("../middleware/editWindow");
+const { hasReachedDate } = require("../utils/dateHelpers");
 
 // ============================================================
 // GET /api/results/:compId/:event/:round
@@ -138,6 +139,13 @@ router.post(
     try {
       const comp = await getCompetitionOrFail(competitionId, res);
       if (!comp) return;
+
+      if (req.user.role !== "SuperAdmin" && !hasReachedDate(comp.startDate)) {
+        return res.status(403).json({
+          message:
+            "No puedes introducir tiempos antes de la fecha de inicio de la competición.",
+        });
+      }
 
       const competitorDoc = await getCompetitorOrFail(
         competitorId,
