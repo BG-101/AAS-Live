@@ -19,6 +19,7 @@ const {
 const { validateSecretStrength } = require("../utils/secretStrength");
 const { isValidUsername } = require("../utils/validateUsername");
 const { sendServerError } = require("../utils/errorResponse");
+const validateObjectId = require("../middleware/validateObjectId");
 
 const resolveJwtExpiresIn = (raw) => {
   if (!raw) return "48h";
@@ -332,6 +333,67 @@ router.post(
   (req, res) => {
     req.app.get("socketio").emit("proyector_logout");
     res.json({ message: "Señal de cierre enviada a todos los proyectores." });
+  },
+);
+
+router.get("/users", auth(["SuperAdmin"]), async (res, req) => {
+  try {
+    const users = await User.find().select("username role");
+    res.json(users);
+  } catch (err) {
+    sendServerError(res, err);
+  }
+});
+
+// ============================================================
+// PATCH /api/auth/users/:id/reset-password
+// Resetea la contraseña de un usuario. Si el body incluye
+// newPassword, la usa (validada); si no, genera una aleatoria
+// y la devuelve UNA VEZ en la respuesta (nunca se vuelve a exponer).
+// Solo SuperAdmin.
+// ============================================================
+router.patch(
+  "/users/:id/reset-password",
+  validateObjectId(),
+  auth(["SuperAdmin"]),
+  async (req, res) => {
+    try {
+      const { newPassword } = req.body;
+      let passwordToSet = newPassword;
+      let generated = false;
+
+      if (passwordToSet !== undefined) {
+        if (typeof passwordToSet !== "string" || passwordToSet.length < 8) {
+          return res
+            .status(400)
+            .json({
+              message: "La contraseña debe tener al menos 8 caracteres.",
+            });
+        }
+      } else {
+        passwordToSet = crypto
+          .randomBytes(9)
+          .toString("base64")
+          .replace(/[^a-zA-Z0-9]/g, "")
+          .slice(0, 12);
+        generated = true;
+      }
+
+      const user = await User.findById(req.params.id);
+      if (!user)
+        return res.status(404).json({ message: "Usuario no encontrado." });
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(passwordToSet, salt);
+      await user.save();
+
+      res.json({
+        message: `Contraseña de '${user.username}' actualizada.`,
+        newPassword: generated ? passwordToSet : undefined,
+      });
+    } catch (err) {
+      sendServerError(res, err);
+    }
   },
 );
 

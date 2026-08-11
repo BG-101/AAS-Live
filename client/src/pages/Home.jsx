@@ -17,6 +17,7 @@ import CompetitionList from "../components/CompetitionList";
 import { API_URL } from "../utils/api";
 import { parseCutoff } from "../utils/formatters";
 import { toast } from "../utils/toast";
+import { UserPanel } from "../components/UserPanel";
 
 // Lista de todos los eventos WCA soportados por el sistema
 const WCA_EVENTS = [
@@ -48,6 +49,7 @@ function Home() {
   const [showLogin, setShowLogin] = useState(false);
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [showRegister, setShowRegister] = useState(false);
+  const [showUserPanel, setShowUserPanel] = useState(false);
   const [registerData, setRegisterData] = useState({
     username: "",
     password: "",
@@ -203,7 +205,9 @@ function Home() {
         `${API_URL}/api/auth/register`,
         registerData,
       );
-      alert(res.data.message);
+      alert(
+        `${res.data.message}\n\nUsuario: ${registerData.username}\nContraseña: ${registerData.password}\n\n⚠️ Anótala ahora, no volverá a mostrarse.`,
+      );
       setShowRegister(false);
       setRegisterData({ username: "", password: "", role: "Delegado" });
     } catch (err) {
@@ -418,16 +422,29 @@ function Home() {
             onSubmit={handleRegisterSubmit}
           />
 
+          <UserPanel
+            show={showUserPanel}
+            onClose={() => setShowUserPanel(false)}
+          />
+
           {/* Controles de autenticación (esquina superior derecha) */}
           <div className="absolute top-4 right-4 md:top-8 md:right-8 flex gap-2 flex-wrap justify-end max-w-xs md:max-w-none">
             {/* Botón de nuevo usuario (solo SuperAdmin) */}
             {user?.role === "SuperAdmin" && (
-              <button
-                onClick={() => setShowRegister(true)}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
-              >
-                + <span className="hidden sm:inline">Nuevo Usuario</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setShowRegister(true)}
+                  className="bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-700 hover:bg-blue-500 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  + <span className="hidden sm:inline">Nuevo Usuario</span>
+                </button>
+                <button
+                  onClick={() => setShowUserPanel(true)}
+                  className="bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  👥 <span className="hidden sm:inline">Usuarios</span>
+                </button>
+              </>
             )}
 
             {/* Botón de logout (si autenticado) o login (si no) */}
