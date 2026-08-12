@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { API_URL } from "./utils/api";
+import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 
 export default function UserPanel({ show, onClose }) {
