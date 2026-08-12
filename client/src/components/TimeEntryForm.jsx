@@ -58,11 +58,12 @@ export default function TimeEntryForm({
   // Filtra competidores por nombre o número de competidor (memo para rendimiento)
   const filteredCompetitors = useMemo(() => {
     const lowerSearch = (searchName || "").toLowerCase();
+    const isNumericSearch = /^\d+$/.test(lowerSearch);
     return (competitors || []).filter((c) => {
       const matchName = c.name && c.name.toLowerCase().includes(lowerSearch);
-      const matchNum =
-        c.competitorNumber &&
-        c.competitorNumber.toString().includes(lowerSearch);
+      const matchNum = isNumericSearch
+        ? c.competitorNumber?.toString() === lowerSearch
+        : c.competitorNumber?.toString().includes(lowerSearch);
       return matchName || matchNum;
     });
   }, [competitors, searchName]);
