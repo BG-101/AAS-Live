@@ -5,14 +5,15 @@
 
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { readFileSync } from "fs";
+import { readFileSync } from "node:fs";
 
-const { version } = JSON.parse(readFileSync("./package.json", "utf-8"));
+const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
+const appVersion = process.env.VITE_APP_VERSION || pkg.version;
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   define: {
-    __APP_VERSION__: JSON.stringify(version),
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
 });
