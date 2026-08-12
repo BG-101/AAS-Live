@@ -58,11 +58,11 @@ router.get(
 router.post("/webhook", async (req, res) => {
   try {
     const secret = req.headers["x-webhook-secret"];
-    const config = await AppConfig.findOne({ key: "webhookGlobalSecret" }).select(
-      "+value",
-    );
+    const config = await AppConfig.findOne({
+      key: "webhookGlobalSecret",
+    }).select("+value");
 
-    const expected = Buffer.from(config?.value || ""),
+    const expected = Buffer.from(config?.value || "");
     const provided = Buffer.from(typeof secret === "string" ? secret : "");
     if (
       !config?.value ||
