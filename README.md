@@ -20,6 +20,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 - [API](#api)
 - [Seguridad](#seguridad)
 - [Tests](#tests)
+- [Despliegue con Docker](#despliegue-con-docker)
 
 ---
 
@@ -454,9 +455,21 @@ docker compose up -d
 
 `docker-compose.yml` usa las imágenes publicadas en GHCR (`ghcr.io/bg-101/aas-live-server` y `aas-live-client`). El servidor requiere su propio `.env` en `./server/.env`.
 
-### Auto-actualización
+### Actualización manual
 
-Un workflow de GitHub Actions (`docker-release.yml`) construye y publica ambas imágenes automáticamente en cada release publicada en GitHub, **excluyendo pre-releases**. Un conteneder Watchtower monitoriza las imágenes cada 5 minutos y actualiza los servicios etiquetados con `com.centurylabs.watchtower.enable=true` sin intervención manual.
+El servidor **no** se auto-actualiza. Cada release no-prerelease publicada en GitHub reetiqueta `:latest` en GHCR (workflow `docker-release.yml`), pero aplicar el cambio requirer un pull explícito:
+
+```bash
+docker pull ghcr.io/bg-101/aas-live-server:v1.1.2
+docker tag ghcr.io/bg-101/aas-live-server:v1.1.2 ghcr.io/bg-101/aas-live-server:latest
+
+docker pull ghcr.io/bg-101/aas-live-client:v1.1.2
+docker tag ghcr.io/bg-101/aas-live-client:v1.1.2 ghcr.io/bg-101/aas-live-client:latest
+
+docker compose up -d
+```
+
+Para fijar una versión concreta en lugar de seguir `latest`, cambia el tag en `docker-compose.yml` (ej: `ghcr.io/bg-101/aas-live-server:v1.1.0`) y usa el mismo comando.
 
 ---
 
