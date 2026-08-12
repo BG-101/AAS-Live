@@ -37,7 +37,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 - 🔒 **Seguridad DevSecOps**: JWT en cookies `httpOnly`, RBAC, rate limiting, sanitización de queries MongoDB, registro de auditoría inmutable y protección contra race conditions en la asignación de números de competidor.
 - ⌛ **Ventana de edición por rol**: los Delegados solo pueden modificar tiempos, competidores y rondas hasta `DELEGATE_EDIT_WINDOW_DAYS` días después de la fecha de fin de la competición; pasado ese plazo, solo un SuperAdmin puede tocarla. Evita modificaciones accidentales o maliciosas sobre torneos ya cerrados.
 - 🔐 **Webhook de inscripciones con caducidad**: el formulario externo deja de aceptar repuestas automáticamente el mismo día en que empieza la competición, y no se puede regenerar el secreto pasada esa fecha.
-- 🐳 **Despliegue containerizado con auto-actualización**: imágenes Docker sin privilegios (usuario no-root) publicadas en GHCR en cada release de GitHub (excluyendo pre-release), con actualización automática del servidor vía Watchtower.
+- 🐳 **Despliegue containerizado**: imágenes Docker sin privilegios (usuario no-root) publicadas en GHCR en cada release de GitHub (excluyendo pre-release), con actualización manual mediante pull explícito de las imágenes.
 
 ---
 
@@ -53,7 +53,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 | Seguridad     | Helmet, express-rate-limit, express-mongo-sanitize, bcryptjs |
 | Logging       | Pino (structured logging)                                    |
 | HTTP client   | Axios                                                        |
-| Despliegue    | Docker, GitHub Actions, Watchtower                           |
+| Despliegue    | Docker, GitHub Actions                                       |
 
 ---
 
@@ -457,7 +457,7 @@ docker compose up -d
 
 ### Actualización manual
 
-El servidor **no** se auto-actualiza. Cada release no-prerelease publicada en GitHub reetiqueta `:latest` en GHCR (workflow `docker-release.yml`), pero aplicar el cambio requirer un pull explícito:
+El servidor **no** se auto-actualiza. Cada release no-prerelease publicada en GitHub reetiqueta `:latest` en GHCR (workflow `docker-release.yml`), pero aplicar el cambio requiere un pull explícito:
 
 ```bash
 docker pull ghcr.io/bg-101/aas-live-server:v1.1.2
@@ -469,7 +469,7 @@ docker tag ghcr.io/bg-101/aas-live-client:v1.1.2 ghcr.io/bg-101/aas-live-client:
 docker compose up -d
 ```
 
-Para fijar una versión concreta en lugar de seguir `latest`, cambia el tag en `docker-compose.yml` (ej: `ghcr.io/bg-101/aas-live-server:v1.1.0`) y usa el mismo comando.
+Para fijar una versión concreta en lugar de seguir `latest`, cambia los tags de ambos servicios en `docker-compose.yml`, ejecuta `docker compose pull` y después `docker compose up -d`.
 
 ---
 
