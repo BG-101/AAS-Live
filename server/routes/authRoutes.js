@@ -16,7 +16,10 @@ const {
   parsePositiveInt,
   MAX_SAFE_TIMEOUT_MS,
 } = require("../utils/parseEnvInt");
-const { validateSecretStrength } = require("../utils/secretStrength");
+const {
+  validateSecretStrength,
+  generateStrongPassword,
+} = require("../utils/secretStrength");
 const { isValidUsername } = require("../utils/validateUsername");
 const { sendServerError } = require("../utils/errorResponse");
 const validateObjectId = require("../middleware/validateObjectId");
@@ -97,7 +100,12 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     // Genera un JWT con el id y rol del usuario, válido 48 horas
     const token = jwt.sign(
-      { id: user._id, role: user.role, username: user.username },
+      {
+        id: user._id,
+        role: user.role,
+        username: user.username,
+        tokenVersion: user.tokenVersion,
+      },
       process.env.JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
     );
@@ -369,11 +377,7 @@ router.patch(
           });
         }
       } else {
-        passwordToSet = crypto
-          .randomBytes(9)
-          .toString("base64")
-          .replace(/[^a-zA-Z0-9]/g, "")
-          .slice(0, 12);
+        passwordToSet = generateStrongPassword(12);
         generated = true;
       }
 
@@ -383,6 +387,7 @@ router.patch(
 
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(passwordToSet, salt);
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
       await user.save();
 
       res.json({

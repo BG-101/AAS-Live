@@ -9,7 +9,7 @@ const startOfDay = (date) => {
 // sus fechas UTC-only siempre distan un múltiplo exacto de 24h.
 const toCalendarDayUTC = (date) => {
   const d = new Date(date);
-  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 };
 
 // true desde las 00:00 del día targetDate en adelante

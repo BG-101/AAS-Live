@@ -5,6 +5,8 @@
 // "cumple la longitud pero es trivialmente adivinable".
 // ============================================================
 
+const crypto = require("crypto");
+
 const COMMON_WEAK_VALUES = [
   "admin123",
   "password",
@@ -50,4 +52,15 @@ const validateSecretStrength = (value, { minLength, minUniqueChars }) => {
   return null;
 };
 
-module.exports = { validateSecretStrength };
+const generateStrongPassword = (length = 12) => {
+  let result = "";
+  while (result.length < length) {
+    result += crypto
+      .randomBytes(length)
+      .toString("base64")
+      .replace(/[^a-zA-Z0-9]/g, "");
+  }
+  return result.slice(0, length);
+};
+
+module.exports = { validateSecretStrength, generateStrongPassword };
