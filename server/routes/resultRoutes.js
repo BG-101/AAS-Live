@@ -206,15 +206,6 @@ router.post(
         }
       }
 
-      // Un 0 fuera de contexto de cutoff = intento sin completar: no se persiste.
-      // Envita Bo3/Bo5 parciales con best>0 colándose en clasificación/avance.
-      if (normalizedTimes.includes(0)) {
-        return res.status(400).json({
-          message:
-            "No se permiten intentos vacíos. Completa todos los intentos o marca DNF/DNS.",
-        });
-      }
-
       const { best, average } = calculateStats(normalizedTimes, format);
 
       // Result + AuditLog deben confirmarse atómicamente: si el AuditLog falla,

@@ -18,7 +18,6 @@ import { API_URL } from "../utils/api";
 import { parseCutoff } from "../utils/formatters";
 import { toast } from "../utils/toast";
 import UserPanel from "../components/UserPanel";
-import GlobalWebhookPanel from "../components/GlobalWebhookPanel";
 
 // Lista de todos los eventos WCA soportados por el sistema
 const WCA_EVENTS = [
@@ -51,7 +50,6 @@ function Home() {
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [showRegister, setShowRegister] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
-  const [showGlobalWebhook, setShowGlobalWebhook] = useState(false);
   const [registerData, setRegisterData] = useState({
     username: "",
     password: "",
@@ -429,11 +427,6 @@ function Home() {
             onClose={() => setShowUserPanel(false)}
           />
 
-          <GlobalWebhookPanel
-            show={showGlobalWebhook}
-            onClose={() => setShowGlobalWebhook(false)}
-          />
-
           {/* Controles de autenticación (esquina superior derecha) */}
           <div className="absolute top-4 right-4 md:top-8 md:right-8 flex gap-2 flex-wrap justify-end max-w-xs md:max-w-none">
             {/* Botón de nuevo usuario (solo SuperAdmin) */}
@@ -450,12 +443,6 @@ function Home() {
                   className="bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 transition font-bold shadow-md text-xs md:text-sm"
                 >
                   👥 <span className="hidden sm:inline">Usuarios</span>
-                </button>
-                <button
-                  onClick={() => setShowGlobalWebhook(true)}
-                  className="bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 transition font-bold shadow-md text-xs md:text-sm"
-                >
-                  🔗 <span className="hidden sm:inline">Inscripciones</span>
                 </button>
               </>
             )}
@@ -950,8 +937,10 @@ function Home() {
                 </h2>
                 <p className="text-gray-400">
                   {user?.role === "Delegado"
-                    ? `¡Hola ${user.username}! Selecciona un torneo para gestionar tiempos.`
-                    : "Selecciona un torneo a continuación para ver los resultados en vivo."}
+                    ? `¡Bienvenido, ${user.username}! Selecciona un torneo para gestionarlo.`
+                    : user?.role === "Metetiempos"
+                      ? `¡Hola ${user.username}! Selecciona un torneo para gestionar tiempos.`
+                      : "Selecciona un torneo a continuación para ver los resultados en vivo."}
                 </p>
               </div>
             )}

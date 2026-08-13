@@ -336,7 +336,7 @@ router.post(
   },
 );
 
-router.get("/users", auth(["SuperAdmin"]), async (res, req) => {
+router.get("/users", auth(["SuperAdmin"]), async (req, res) => {
   try {
     const users = await User.find().select("username role");
     res.json(users);
@@ -364,11 +364,9 @@ router.patch(
 
       if (passwordToSet !== undefined) {
         if (typeof passwordToSet !== "string" || passwordToSet.length < 8) {
-          return res
-            .status(400)
-            .json({
-              message: "La contraseña debe tener al menos 8 caracteres.",
-            });
+          return res.status(400).json({
+            message: "La contraseña debe tener al menos 8 caracteres.",
+          });
         }
       } else {
         passwordToSet = crypto

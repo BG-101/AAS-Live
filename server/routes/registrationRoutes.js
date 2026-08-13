@@ -10,7 +10,6 @@ const router = express.Router();
 const Registration = require("../models/Registration");
 const Competitor = require("../models/Competitor");
 const Competition = require("../models/Competition");
-const AppConfig = require("../models/AppConfig");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
@@ -49,118 +48,6 @@ router.get(
       res.json(regs);
     } catch (err) {
       res.status(500).json({ message: err.message });
-    }
-  },
-);
-
-// POST /api/registration/webhook - receptor CENTRALIZADO (Excel maestro),
-// sin auth, valida el secreto global. Enruta a la competición por competitionWcaId.
-router.post("/webhook", async (req, res) => {
-  try {
-    const secret = req.headers["x-webhook-secret"];
-    const config = await AppConfig.findOne({
-      key: "webhookGlobalSecret",
-    }).select("+value");
-
-    const expected = Buffer.from(config?.value || "");
-    const provided = Buffer.from(typeof secret === "string" ? secret : "");
-    if (
-      !config?.value ||
-      expected.length !== provided.length ||
-      !crypto.timingSafeEqual(expected, provided)
-    )
-      return res.status(401).json({ message: "Secreto inválido." });
-
-    const { competitionWcaId } = req.body;
-    if (!competitionWcaId?.trim())
-      return res.status(400).json({ message: "Falta competitionWcaId" });
-
-    const comp = await Competition.findOne({
-      wcaId: competitionWcaId.trim(),
-      isDeleted: { $ne: true },
-    });
-    if (!comp)
-      return res.status(404).json({
-        message: `Competición no encontrada para wcaId "${competitionWcaId.trim()}".`,
-      });
-
-    // Misma regla de caducidad que el webhook legacy: por competición, no global
-    if (hasReachedDate(comp.startDate)) {
-      return res.status(403).json({
-        message:
-          "El formulario de inscricpión para esta competición ha caducado.",
-      });
-    }
-
-    const {
-      name,
-      wcaId,
-      age,
-      birthDate,
-      locality,
-      email,
-      events,
-      formResponseId,
-      rawData,
-    } = req.body;
-    if (!name?.trim())
-      return res.status(400).json({ message: "Nombre requerido." });
-
-    const parsedAge = normalizeAge(age);
-    const responseId =
-      typeof formResponseId === "string" && fromResponseId.trim()
-        ? formResponseId.trim()
-        : null;
-    let reg;
-    try {
-      reg = await Registration.create({
-        competition: comp._id,
-        name: name.trim(),
-        wcaId: wcaId?.trim() || "",
-        age: parsedAge,
-        birthDate: birthDate || null,
-        locality: locality?.trim() || "",
-        email: email?.trim() || "",
-        events: Array.isArray(events) ? events : [],
-        formResponseId: responseId,
-        rawData: rawData || req.body,
-      });
-    } catch (createErr) {
-      if (createErr.code === 11000) {
-        const dup = await Registration.findOne({
-          competition: comp._id,
-          formResponseId: responseId,
-        });
-        return res.json({ message: "Ya registrado.", id: dup?._id });
-      }
-      throw createErr;
-    }
-
-    req.app
-      .get("socketio")
-      ?.emit("nueva_inscripcion", { competitionId: comp._id.toString() });
-    res.status(201).json(reg);
-  } catch (err) {
-    sendServerError(res, err);
-  }
-});
-
-// POST /api/registrations/generate-secret-global - genera/regenera el
-// secreto único del webhook centralizado (SuperAdmin)
-router.post(
-  "/generate-secret-global",
-  auth(["SuperAdmin"]),
-  async (req, res) => {
-    try {
-      const secret = crypto.randomBytes(24).toString("hex");
-      await AppConfig.findOneAndUpdate(
-        { key: "webhookGlobalSecret" },
-        { value: secret },
-        { upsert: true },
-      );
-      res.json({ secret });
-    } catch (err) {
-      sendServerError(res, err);
     }
   },
 );
