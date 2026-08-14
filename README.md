@@ -107,6 +107,7 @@ aas-live/
         │   ├── RegistrationPanel.jsx     # Gestión de inscripciones y webhooks
         │   ├── AuditModal.jsx            # Historial de cambios de tiempos
         │   ├── RoundSettingsModal.jsx    # Configuración de formato y avance por ronda
+        │   ├── UserPanel.jsx             # Listado de usuarios y reseteo de contraseña (SuperAdmin)
         │   ├── LoginModal.jsx            # Modal de inicio de sesión
         │   └── RegisterModal.jsx         # Modal de registro de usuarios
         └── utils/
@@ -285,11 +286,12 @@ Esto crea el usuario `DEFAULT_ADMIN_USERNAME` (o `admin` si no se define) con la
 
 ## Roles y permisos
 
-| Rol          | Descripción                | Permisos                                                                                                                                                |
-| ------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SuperAdmin` | Administrador total        | Crear competiciones, gestionar usuarios, editar competidores, vaciar papelera, ver auditoría, editar competición sin límite temporal                    |
-| `Delegado`   | Organizador de competición | Inscribir competidores, introducir tiempos, gestionar rondas, ver auditoría - solo hasta `DELEGATE_EDIT_WINDOW_DAYS` días tras el fin de la competición |
-| `Espectador` | Solo lectura               | Ver resultados en tiempo real, acceder al proyector                                                                                                     |
+| Rol           | Descripción                | Permisos                                                                                                                                                                                     |
+| ------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SuperAdmin`  | Administrador total        | Crear competiciones, gestionar usuarios (incluye reseteo de contraseñas), editar competidores, vaciar papelera, ver auditoría, editar competición sin límite temporal                        |
+| `Delegado`    | Organizador de competición | Inscribir competidores, introducir tiempos, gestionar rondas, ver auditoría - solo hasta `DELEGATE_EDIT_WINDOW_DAYS` días tras el fin de la competición, y nunca antes de la fecha de inicio |
+| `Espectador`  | Solo lectura               | Ver resultados en tiempo real, acceder al proyector                                                                                                                                          |
+| `Metetiempos` | Solo entrada de tiempos    | Introducir tiempos de la ronda activa. Sin acceso a gestión de competidores, rondas, inscripciones ni auditoría                                                                              |
 
 Los usuarios sin sesión iniciada pueden ver la lista de competiciones y los resultados públicos.
 
@@ -381,6 +383,8 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 | POST   | `/api/auth/register`                              | SuperAdmin     | Crea un nuevo usuario                                                                                                |
 | POST   | `/api/auth/setup`                                 | —              | Inicialización (requiere `ALLOW_SETUP=true`)                                                                         |
 | POST   | `/api/auth/logout-projectors`                     | Admin/Delegado | Fuerza cierre de sesión en pantallas Espectador                                                                      |
+| GET    | `/api/auth/users`                                 | SuperAdmin     | Lista usuarios (username + rol, sin contraseña)                                                                      |
+| GET    | `/api/auth/users/:id/reset-password`              | SuperAdmin     | Resetea contraseña de un usuario (custom o generada) e invalida sus sesiones activas                                 |
 | GET    | `/api/competitions`                               | —              | Lista todas las competiciones activas                                                                                |
 | GET    | `/api/competitions/:id`                           | —              | Detalle de una competición                                                                                           |
 | POST   | `/api/competitions`                               | SuperAdmin     | Crea una competición                                                                                                 |
@@ -425,6 +429,8 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 - **Endpoint de bootstrap protegido**: `/api/auth/setup` requiere un token dedicado (`SETUP_BOOTSTRAP_TOKEN`, comparado con `crypto.timingSafeEqual`) además de `ALLOW_SETUP=true`; el token y la contraseña por defecto se validan por entropía (longitud mínima, diversidad de caracteres, denylist de valores comunes) antes de poder crear el primer SuperAdmin.
 - **Configuración externalizada**: rate limits (login y escritura), duración del JWT, `maxAge` de la cookie y límite del body JSON se leen de variables de entorno con parseo seguro (`parsePositiveInt`), evitando valores negativos, `NaN` o superiores al límite de timers de Node.
 - **Ventana de edición temporal**: middleware `editWindowGuard` bloquea con 403 cualquier mutación de un Delegado (tiempos, competidores, rondas, aprobación de inscripciones, incluida la auto-inscripción en competiciones de serie) sobre competiciones finalizadas hace más de `DELEGATE_EDIT_WINDOW_DAYS` días. SuperAdmin no tiene esta restricción.
+- **Ventana de entrada de tiempos**: nadie salvo SuperAdmin puede introducir tiempos antes de la fecha de inicio (`startDate`) de la competición, con el mismo criterio de comparación por día calendario UTC usado en la ventana de edición posterior.
+- **Revocación de sesión (`tokenVersion`)**: cada usuario lleva un contador `tokenVersion` en BD, incluido en el payload del JWT al hacer login. Un reseteo de contraseña desde el panel de SuperAdmin lo incrementa, invalidando inmediatamente cualquier sesión activa emitida antes del reset - un token robado deja de servir en cuanto se cambia la contraseña de esa cuenta, sin esperar a su expiración natural.
 - **Mensajes de error controlados**: en producción, los errores 500 devuelven un mensaje genérico al cliente; el detalle real solo se expone en `development`/`test` o en errores 4xx de validación. Todo se registra internamente con logging estructurado (Pino).
 - **Contenedores sin privilegios**: las imágenes Docker del servidor y del cliente corren como usuario no-root.
 - **CI/pre-commit**: un job de GitHub Actions y un hook local bloquean cualquier commit que incluya un archivo `.env` real (incluyendo renombrados), evitando fugas accidentales de secretos.
