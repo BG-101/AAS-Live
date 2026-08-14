@@ -30,6 +30,7 @@ const {
   editWindowGuard,
   byBodyCompetitionId,
 } = require("../middleware/editWindow");
+const { hasReachedDate } = require("../utils/dateHelpers");
 
 // ============================================================
 // GET /api/results/:compId/:event/:round
@@ -108,7 +109,7 @@ router.get(
 // ============================================================
 router.post(
   "/",
-  auth(["SuperAdmin", "Delegado"]),
+  auth(["SuperAdmin", "Delegado", "Metetiempos"]),
   editWindowGuard(byBodyCompetitionId),
   async (req, res) => {
     // Extrae los datos del body de la petición
@@ -138,6 +139,13 @@ router.post(
     try {
       const comp = await getCompetitionOrFail(competitionId, res);
       if (!comp) return;
+
+      if (req.user.role !== "SuperAdmin" && !hasReachedDate(comp.startDate)) {
+        return res.status(403).json({
+          message:
+            "No puedes introducir tiempos antes de la fecha de inicio de la competición.",
+        });
+      }
 
       const competitorDoc = await getCompetitorOrFail(
         competitorId,
@@ -196,15 +204,6 @@ router.post(
             i >= cutoffLimitIndex && t === 0 ? -1 : t,
           );
         }
-      }
-
-      // Un 0 fuera de contexto de cutoff = intento sin completar: no se persiste.
-      // Envita Bo3/Bo5 parciales con best>0 colándose en clasificación/avance.
-      if (normalizedTimes.includes(0)) {
-        return res.status(400).json({
-          message:
-            "No se permiten intentos vacíos. Completa todos los intentos o marca DNF/DNS.",
-        });
       }
 
       const { best, average } = calculateStats(normalizedTimes, format);

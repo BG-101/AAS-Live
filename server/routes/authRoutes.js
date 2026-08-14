@@ -16,9 +16,13 @@ const {
   parsePositiveInt,
   MAX_SAFE_TIMEOUT_MS,
 } = require("../utils/parseEnvInt");
-const { validateSecretStrength } = require("../utils/secretStrength");
+const {
+  validateSecretStrength,
+  generateStrongPassword,
+} = require("../utils/secretStrength");
 const { isValidUsername } = require("../utils/validateUsername");
 const { sendServerError } = require("../utils/errorResponse");
+const validateObjectId = require("../middleware/validateObjectId");
 
 const resolveJwtExpiresIn = (raw) => {
   if (!raw) return "48h";
@@ -96,7 +100,12 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     // Genera un JWT con el id y rol del usuario, válido 48 horas
     const token = jwt.sign(
-      { id: user._id, role: user.role, username: user.username },
+      {
+        id: user._id,
+        role: user.role,
+        username: user.username,
+        tokenVersion: user.tokenVersion,
+      },
       process.env.JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
     );
@@ -267,7 +276,12 @@ router.post("/register", auth(["SuperAdmin"]), async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
-    const ALLOWED_ROLES = ["SuperAdmin", "Delegado", "Espectador"];
+    const ALLOWED_ROLES = [
+      "SuperAdmin",
+      "Delegado",
+      "Espectador",
+      "Metetiempos",
+    ];
     if (role && !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ message: "Rol no válido." });
     }
@@ -327,6 +341,62 @@ router.post(
   (req, res) => {
     req.app.get("socketio").emit("proyector_logout");
     res.json({ message: "Señal de cierre enviada a todos los proyectores." });
+  },
+);
+
+router.get("/users", auth(["SuperAdmin"]), async (req, res) => {
+  try {
+    const users = await User.find().select("username role");
+    res.json(users);
+  } catch (err) {
+    sendServerError(res, err);
+  }
+});
+
+// ============================================================
+// PATCH /api/auth/users/:id/reset-password
+// Resetea la contraseña de un usuario. Si el body incluye
+// newPassword, la usa (validada); si no, genera una aleatoria
+// y la devuelve UNA VEZ en la respuesta (nunca se vuelve a exponer).
+// Solo SuperAdmin.
+// ============================================================
+router.patch(
+  "/users/:id/reset-password",
+  validateObjectId(),
+  auth(["SuperAdmin"]),
+  async (req, res) => {
+    try {
+      const { newPassword } = req.body;
+      let passwordToSet = newPassword;
+      let generated = false;
+
+      if (passwordToSet !== undefined) {
+        if (typeof passwordToSet !== "string" || passwordToSet.length < 8) {
+          return res.status(400).json({
+            message: "La contraseña debe tener al menos 8 caracteres.",
+          });
+        }
+      } else {
+        passwordToSet = generateStrongPassword(12);
+        generated = true;
+      }
+
+      const user = await User.findById(req.params.id);
+      if (!user)
+        return res.status(404).json({ message: "Usuario no encontrado." });
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(passwordToSet, salt);
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
+      await user.save();
+
+      res.json({
+        message: `Contraseña de '${user.username}' actualizada.`,
+        newPassword: generated ? passwordToSet : undefined,
+      });
+    } catch (err) {
+      sendServerError(res, err);
+    }
   },
 );
 

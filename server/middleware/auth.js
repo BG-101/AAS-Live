@@ -5,6 +5,7 @@
 // ============================================================
 
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 /**
  * Crea un middleware de autenticación configurable.
@@ -21,7 +22,7 @@ const jwt = require("jsonwebtoken");
  * 5. Adjunta los datos del usuario a req.user para uso posterior
  */
 const auth = (allowedRoles = []) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       // Intenta obtener el JWT de las cookies
       const token = req.cookies.jwtToken;
@@ -38,6 +39,15 @@ const auth = (allowedRoles = []) => {
         return res
           .status(403)
           .json({ message: "No tienes permiso para hacer esto." });
+      }
+
+      const currentUser = await User.findById(verified.id)
+        .select("tokenVersion")
+        .lean();
+      if (!currentUser || currentUser.tokenVersion !== verified.tokenVersion) {
+        return res
+          .status(401)
+          .json({ message: "Sesión invalidada. Inicia sesión de nuevo." });
       }
 
       // Adjunta el payload decodificado a la request para que las rutas puedan usarlo

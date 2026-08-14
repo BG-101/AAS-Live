@@ -101,6 +101,8 @@ function CompetitionDetails() {
   // Flags de permisos derivados del rol
   const isWritableAdmin =
     user?.role === "SuperAdmin" || user?.role === "Delegado"; // Puede escribir datos
+  const isTimekeeper = user?.role === "Metetiempos";
+  const canEnterTimes = isWritableAdmin || isTimekeeper;
   const isProjector = user?.role === "Espectador"; // Solo muestra datos (modo proyector)
 
   // --- Estado de modales ---
@@ -1031,7 +1033,7 @@ function CompetitionDetails() {
 
             {/* Botón login/logout */}
             {user ? (
-              isWritableAdmin ? (
+              canEnterTimes ? (
                 <button
                   onClick={handleLogout}
                   className="bg-red-500 text-white px-3 py-1.5 rounded border border-red-600 hover:bg-red-600 transition font-bold shadow-md text-xs md:text-sm"
@@ -1061,7 +1063,7 @@ function CompetitionDetails() {
       {/* === CONTENIDO PRINCIPAL === */}
       <div className="w-full px-6 mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* --- COLUMNA IZQUIERDA: Solo visible para admins --- */}
-        {isWritableAdmin && (
+        {canEnterTimes && (
           <div className="space-y-6 lg:col-span-1">
             {/* Formulario de tiempos o bloqueo por ronda anterior */}
             {!isPrevRoundFinished ? (
@@ -1099,6 +1101,7 @@ function CompetitionDetails() {
                   roundCutoff={roundCutoff}
                   limitIndex={getCutoffLimitIndex()}
                   cutoffPassed={hasPassedCutoff()}
+                  canDeleteCompetitor={isWritableAdmin}
                 />
                 {/* Resumen de clasificados por grupo (ronda > 1 con grupos de edad) */}
                 {competition.ageGroupsEnabled &&
@@ -1140,7 +1143,7 @@ function CompetitionDetails() {
         )}
 
         {/* --- COLUMNA DERECHA: Resultados (visible para todos) --- */}
-        <div className={isWritableAdmin ? "lg:col-span-2" : "lg:col-span-3"}>
+        <div className={canEnterTimes ? "lg:col-span-2" : "lg:col-span-3"}>
           {/* Pestañas de eventos */}
           {/* Pestañas de grupos de edad (solo si está habilitado y no estamos en SOR) */}
           {competition.ageGroupsEnabled && selectedEvent !== "__SOR__" && (

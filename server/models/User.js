@@ -19,9 +19,11 @@ const userSchema = new mongoose.Schema({
   //   "Espectador"  → Solo lectura, pensado para la pantalla del proyector
   role: {
     type: String,
-    enum: ["SuperAdmin", "Delegado", "Espectador"],
+    enum: ["SuperAdmin", "Delegado", "Espectador", "Metetiempos"],
     default: "Delegado",
   },
+
+  tokenVersion: { type: Number, default: 0 },
 });
 
 // Garantiza a nivel de BD que solo puede existir un SuperAdmin: protege /setup

@@ -53,6 +53,7 @@ export default function TimeEntryForm({
   roundCutoff = 0,
   limitIndex = 2,
   cutoffPassed = true,
+  canDeleteCompetitor = true,
 }) {
   // Filtra competidores por nombre o número de competidor (memo para rendimiento)
   const filteredCompetitors = useMemo(() => {
@@ -134,17 +135,19 @@ export default function TimeEntryForm({
                   </span>
 
                   {/* Botón de borrar competidor (se muestra en el dropdown) */}
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleDeleteCompetitor(c._id, c.name);
-                    }}
-                    className="bg-red-500 text-white hover:bg-red-700 px-3 py-1 rounded shadow transition ml-2 text-xs"
-                  >
-                    🗑️ Borrar
-                  </button>
+                  {canDeleteCompetitor && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDeleteCompetitor(c._id, c.name);
+                      }}
+                      className="bg-red-500 text-white hover:bg-red-700 px-3 py-1 rounded shadow transition ml-2 text-xs"
+                    >
+                      🗑️ Borrar
+                    </button>
+                  )}
                 </div>
               ))}
 
