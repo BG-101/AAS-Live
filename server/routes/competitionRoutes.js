@@ -14,7 +14,7 @@ const Result = require("../models/Result");
 const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 const { editWindowGuard, byParamId } = require("../middleware/editWindow");
-const { ROUND_FORMATS } = require("../utils/wcaLogic");
+const { ROUND_FORMATS, invalidateSORCache } = require("../utils/wcaLogic");
 const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
@@ -373,6 +373,7 @@ router.put(
         updatedComp = comp;
       });
 
+      invalidateSORCache(competitionId);
       // Notifica a los clientes conectados
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json(updatedComp);
@@ -482,6 +483,7 @@ router.delete(
         if (reopenedAny) await comp.save({ session });
       });
 
+      invalidateSORCache(competitionId);
       // Socket + respuesta solo tras commit confirmado
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });

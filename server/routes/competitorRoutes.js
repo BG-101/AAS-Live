@@ -15,6 +15,7 @@ const validateObjectId = require("../middleware/validateObjectId");
 const {
   processAdvancements,
   resolveCompetitorAge,
+  invalidateSORCache,
 } = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
@@ -359,6 +360,7 @@ router.post(
         }
       }
 
+      invalidateSORCache(competitionId);
       const io = req.app.get("socketio");
       if (io && createdSuccessfully) {
         io.emit("competidor_actualizado", { competitionId: compId });
@@ -405,6 +407,7 @@ router.delete(
         name: deletedName,
       });
 
+      invalidateSORCache(competitionId);
       const io = req.app.get("socketio");
       if (io)
         io.emit("competidor_actualizado", {

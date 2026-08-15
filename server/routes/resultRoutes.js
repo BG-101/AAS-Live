@@ -21,6 +21,7 @@ const {
   getRoundFormatMeta,
   ROUND_FORMATS,
   toPublicCompetitor,
+  invalidateSORCache,
 } = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
@@ -309,7 +310,14 @@ router.post(
           .lean();
 
         const validUpdated = updatedResults.filter((r) => r.competitor != null);
+
+        // Recarga deliberadamente (no reusar el `comp` de getCompetitionOrFail de arriba):
+        // entre el guardado transaccional del Result y este punto, otra request pudo
+        // mutar `comp.rounds` (round-status, round-settings) de forma concurrente.
+        // Usar el `comp` cacheado serviría un payload de socket con reglas de avance
+        // obsoletas. Si se cachea, debe ser con invalidación explícita, no por defecto.
         const compForSocket = await Competition.findById(competitionId);
+
         const roundConfigForSocket = compForSocket.rounds.find(
           (r) => r.event === event && r.roundNumber === roundNum,
         );
@@ -328,6 +336,7 @@ router.post(
           competitor: toPublicCompetitor(r.competitor, compForSocket.startDate),
         }));
 
+        invalidateSORCache(competitionId);
         const io = req.app.get("socketio");
         if (io) {
           io.emit("resultado_actualizado", {

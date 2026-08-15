@@ -122,7 +122,11 @@ const sortResultsWCA = (results) => {
 // - Ronda > 1: se miran los resultados de la ronda anterior
 //   y se aplican las reglas de avance (por ranking o porcentaje)
 // ============================================================
-async function getEligibleCount(compId, event, round) {
+async function getEligibleCount(compId, event, round, memo = new Map()) {
+  const key = `${compId}:${event}:${round}`;
+  if (memo.has(key)) return memo.get(key);
+
+  let result;
   if (round === 1) {
     // Ronda 1: cuenta todos los competidores inscritos en el evento (no borrados)
     return await Competitor.countDocuments({
@@ -130,43 +134,53 @@ async function getEligibleCount(compId, event, round) {
       events: event,
       isDeleted: { $ne: true },
     });
+  } else {
+    // Ronda > 1: obtiene los resultados de la ronda anterior
+    const prevRoundNum = round - 1;
+    const prevResults = await Result.find({
+      competition: compId,
+      event,
+      round: prevRoundNum,
+    })
+      // Populate filtra competidores borrados (devuelve null si isDeleted)
+      .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
+      .lean();
+    // Descarta resultados cuyo competidor fue borrado (populate devolvió null)
+    const validPrevResults = prevResults.filter((r) => r.competitor !== null);
+
+    // Busca la configuración de la ronda anterior (tipo y valor de avance)
+    const comp = await Competition.findById(compId);
+    const prevRound = comp.rounds.find(
+      (r) => r.event === event && r.roundNumber === prevRoundNum,
+    );
+
+    if (!prevRound) {
+      result = 0;
+    } else {
+      // Cuenta solo los competidores que tuvieron al menos un tiempo válido (best > 0)
+      const validCompetitors = validPrevResults.filter(
+        (r) => r.best > 0,
+      ).length;
+      if (prevRound.advancementType === "ranking") {
+        // Avance por ranking fijo: avanza el top N (o menos si no hay suficientes)
+        result = Math.min(prevRound.advancementValue, validCompetitors);
+      } else if (prevRound.advancementType === "percent") {
+        // Avance por porcentaje: avanza un % del total de elegibles de esa ronda
+        const prevTotal = await getEligibleCount(
+          compId,
+          event,
+          prevRoundNum,
+          memo,
+        );
+        result = Math.floor(prevTotal * (prevRound.advancementValue / 100));
+      } else {
+        result = 0;
+      }
+    }
   }
 
-  // Ronda > 1: obtiene los resultados de la ronda anterior
-  const prevRoundNum = round - 1;
-  const prevResults = await Result.find({
-    competition: compId,
-    event: event,
-    round: prevRoundNum,
-  })
-    // Populate filtra competidores borrados (devuelve null si isDeleted)
-    .populate({ path: "competitor", match: { isDeleted: { $ne: true } } })
-    .lean();
-
-  // Descarta resultados cuyo competidor fue borrado (populate devolvió null)
-  const validPrevResults = prevResults.filter((r) => r.competitor !== null);
-
-  // Busca la configuración de la ronda anterior (tipo y valor de avance)
-  const comp = await Competition.findById(compId);
-  const prevRound = comp.rounds.find(
-    (r) => r.event === event && r.roundNumber === prevRoundNum,
-  );
-
-  if (!prevRound) return 0;
-
-  // Cuenta solo los competidores que tuvieron al menos un tiempo válido (best > 0)
-  const validCompetitors = validPrevResults.filter((r) => r.best > 0).length;
-
-  if (prevRound.advancementType === "ranking") {
-    // Avance por ranking fijo: avanza el top N (o menos si no hay suficientes)
-    return Math.min(prevRound.advancementValue, validCompetitors);
-  } else if (prevRound.advancementType === "percent") {
-    // Avance por porcentaje: avanza un % del total de elegibles de esa ronda
-    const prevTotal = await getEligibleCount(compId, event, prevRoundNum);
-    return Math.floor(prevTotal * (prevRound.advancementValue / 100));
-  }
-
-  return 0;
+  memo.set(key, result);
+  return result;
 }
 
 // ============================================================
@@ -174,10 +188,20 @@ async function getEligibleCount(compId, event, round) {
 // Versión age-aware de getEligibleCount. Cuenta solo los
 // competidores elegibles que pertenecen al grupo de edad dado.
 // ============================================================
-async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
+async function getEligibleCountByAgeGroup(
+  compId,
+  event,
+  round,
+  ageGroupKey,
+  memo = new Map(),
+) {
+  const key = `${compId}:${event}:${round}:${ageGroupKey}`;
+  if (memo.has(key)) return memo.get(key);
+
   const comp = await Competition.findById(compId);
   const ageGroups = resolveAgeGroups(comp);
 
+  let result;
   if (round === 1) {
     const allInEvent = await Competitor.find({
       competition: compId,
@@ -186,8 +210,12 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
     })
       .select("+birthDate")
       .lean();
-    return filterByAgeGroup(allInEvent, ageGroupKey, ageGroups, comp.startDate)
-      .length;
+    result = filterByAgeGroup(
+      allInEvent,
+      ageGroupKey,
+      ageGroups,
+      comp.startDate,
+    ).length;
   }
 
   const prevRoundNum = round - 1;
@@ -214,23 +242,25 @@ async function getEligibleCountByAgeGroup(compId, event, round, ageGroupKey) {
   const prevRound = comp.rounds.find(
     (r) => r.event === event && r.roundNumber === prevRoundNum,
   );
-  if (!prevRound) return 0;
+  if (!prevRound) result = 0;
 
   const validCompetitors = validPrevResults.filter((r) => r.best > 0).length;
 
   if (prevRound.advancementType === "ranking") {
-    return Math.min(prevRound.advancementValue, validCompetitors);
+    result = Math.min(prevRound.advancementValue, validCompetitors);
   } else if (prevRound.advancementType === "percent") {
     const prevTotal = await getEligibleCountByAgeGroup(
       compId,
       event,
       prevRoundNum,
       ageGroupKey,
+      memo,
     );
-    return Math.floor(prevTotal * (prevRound.advancementValue / 100));
+    result = Math.floor(prevTotal * (prevRound.advancementValue / 100));
   }
 
-  return 0;
+  memo.set(key, result);
+  return result;
 }
 
 // ============================================================
@@ -263,6 +293,7 @@ async function processAdvancements(
   // Ordena los resultados según las reglas WCA
   const sortedResults = sortResultsWCA(results);
   const currentRound = parseInt(roundNum);
+  const memo = new Map();
 
   // Ronda final o sin configuración de avance
   if (!roundObj || roundObj.advancementValue === 0) {
@@ -276,6 +307,7 @@ async function processAdvancements(
       compId,
       event,
       currentRound,
+      memo,
     );
     const cutoffIndex =
       roundObj.advancementType === "ranking"
@@ -322,6 +354,7 @@ async function processAdvancements(
       event,
       currentRound,
       group._id,
+      memo,
     );
 
     const cutoffIndex =
@@ -500,8 +533,27 @@ const filterByAgeGroup = (competitors, groupKey, ageGroups, referenceDate) => {
   });
 };
 
+const SOR_CACHE_TTL_MS = 2500;
+const sorCache = new Map();
+
+const invalidateSORCache = (compId) => {
+  const prefix = `${compId}`;
+  for (const key of sorCache.keys())
+    if (key.startsWith(prefix)) sorCache.delete(key);
+};
+
+async function calculateSOR(compId, ageGroup = null) {
+  const cacheKey = `${compId}|${ageGroup || ""}`;
+  const cached = sorCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SOR_CACHE_TTL_MS) return cached.data;
+
+  const data = await computeSOR(compId, ageGroup);
+  sorCache.set(cacheKey, { data, ts: Date.now() });
+  return data;
+}
+
 // ============================================================
-// calculateSOR(compId, ageGroup?)
+// computeSOR(compId, ageGroup?)
 // Calcula el Sum of Ranks de una competición.
 //
 // Para cada evento:
@@ -514,7 +566,7 @@ const filterByAgeGroup = (competitors, groupKey, ageGroups, referenceDate) => {
 // @param {string|null} ageGroup - "alevin", "infantil", "absoluta" o null
 // @returns {{ rankings: Array, events: string[] }}
 // ============================================================
-async function calculateSOR(compId, ageGroup = null) {
+async function computeSOR(compId, ageGroup = null) {
   const comp = await Competition.findById(compId);
   if (!comp) throw new Error("Competición no encontrada");
 
@@ -669,6 +721,7 @@ module.exports = {
   calculateStats,
   processAdvancements,
   sortResultsWCA,
+  invalidateSORCache,
   calculateSOR,
   DEFAULT_AGE_GROUPS,
   resolveAgeGroups,

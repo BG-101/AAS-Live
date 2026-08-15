@@ -20,6 +20,7 @@ const {
   byParamId,
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
+const { invalidateSORCache } = require("../utils/wcaLogic");
 
 const normalizeAge = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -409,6 +410,7 @@ router.patch(
         }
       }
 
+      invalidateSORCache(competitionId);
       req.app.get("socketio")?.emit("competidor_actualizado", {
         competitionId: reg.competition.toString(),
       });
