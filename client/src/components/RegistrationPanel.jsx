@@ -8,6 +8,7 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 import { resolveCompetitorAge } from "../utils/formatters";
+import { createSocket } from "../utils/socket";
 
 const STATUS = {
   pending: {
@@ -77,8 +78,19 @@ export default function RegistrationPanel({
   }, [competitionId]);
 
   useEffect(() => {
-    if (show) load();
-  }, [show, load]);
+    if (!show || !competitionId) return;
+    const socket = createSocket();
+    socket.on("nueva_inscripcion", (data) => {
+      if (data.competitionId === competitionId) load();
+    });
+    socket.on("competidor_actualizado", (data) => {
+      if (data.competitionId === competitionId) load();
+    });
+    socket.on("inscripcion_actualizada", (data) => {
+      if (data.competitionId === competitionId) load();
+    });
+    return () => socket.disconnect();
+  }, [show, competitionId, load]);
 
   if (!show) return null;
 

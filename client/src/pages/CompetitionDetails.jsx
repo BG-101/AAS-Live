@@ -643,6 +643,7 @@ function CompetitionDetails() {
   /** Alterna el estado de la ronda entre "In Progress" y "Finished" */
   const handleToggleRoundStatus = async (isFinished) => {
     const newStatus = isFinished ? "In Progress" : "Finished";
+    let cleanupResultsAfter = false;
 
     // Al reabrir una ronda, comprueba si hay resultados en rondas posteriores
     if (isFinished) {
@@ -650,7 +651,6 @@ function CompetitionDetails() {
       const laterRounds = competition.rounds.filter(
         (r) => r.event === selectedEvent && r.roundNumber > selectedRound,
       );
-
       if (laterRounds.length > 0) {
         // Comprueba si alguna de esas rondas tiene resultados reales
         let hasLaterResults = false;
@@ -667,33 +667,13 @@ function CompetitionDetails() {
           hasLaterResults = true; // Si falla el check, avisar por precaución
         }
 
-        if (hasLaterResults) {
-          const confirmed = window.confirm(
-            `⚠️ ATENCIÓN\n\n` +
-              `Hay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\n` +
-              `Si reabres esta ronda y modificas tiempos, esos datos quedarán inconsistentes.\n\n` +
-              `¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
-          );
-          if (!confirmed) return;
-        } else {
-          if (!window.confirm("¿Marcar como EN CURSO?")) return;
-        }
-
-        // Se llama SIEMPRE que haya rondas posteriores, tengan o no resultados:
-        // borra lo que haya y reabre cualquier ronda Finished posterior para
-        // no dejar un estado inconsciente (ronda cerrada sin datos reales).
-        try {
-          await axios.delete(
-            `${API_URL}/api/competitions/${compId}/round-results-after`,
-            { data: { event: selectedEvent, fromRound: selectedRound } },
-          );
-        } catch (err) {
-          alert(
-            err.response?.data?.message ||
-              "Error al limpiar resultados posteriores.",
-          );
-          return;
-        }
+        const confirmed = hasLaterResults
+          ? window.confirm(
+              `⚠️ ATENCIÓN\n\nHay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\nSi reabres esta ronda y modificas tiempos, esos datos quedarán inconsistentes.\n\n¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
+            )
+          : window.confirm("¿Marcar como EN CURSO?");
+        if (!confirmed) return;
+        cleanupResultsAfter = hasLaterResults;
       } else {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
       }
@@ -706,8 +686,10 @@ function CompetitionDetails() {
         event: selectedEvent,
         roundNumber: selectedRound,
         status: newStatus,
+        cleanupResultsAfter,
       });
       setRefreshCompetitions((prev) => prev + 1);
+      if (cleanupResultsAfter) setRefreshResults((prev) => prev + 1);
     } catch (err) {
       alert(err.response?.data?.message || "Error al cambiar estado");
     }

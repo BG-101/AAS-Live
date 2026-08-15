@@ -457,6 +457,9 @@ router.patch(
             })
           : res.status(404).json({ message: "No encontrada." });
       }
+      req.app.get("socketio")?.emit("inscripcion_actualizada", {
+        competitionId: reg.competition.toString(),
+      });
       res.json(reg);
     } catch (err) {
       console.error("Error en /reject:", err);
