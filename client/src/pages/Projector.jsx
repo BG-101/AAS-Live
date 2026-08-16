@@ -254,8 +254,16 @@ function Projector() {
   // ============================================================
   if (!competition)
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center text-4xl font-bold">
-        Cargando transmisión en vivo...
+      <div className="min-h-screen bg-black p-10">
+        <div className="animate-pulse space-y-6">
+          <div className="h-10 w-1/2 bg-gray-800 rounded" />
+          <div className="h-6 w-1/3 bg-gray-800 rounded" />
+          <div className="space-y-3 mt-8">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-10 bg-gray-900 rounded" />
+            ))}
+          </div>
+        </div>
       </div>
     );
 

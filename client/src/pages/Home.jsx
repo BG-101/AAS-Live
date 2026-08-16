@@ -403,8 +403,11 @@ function Home() {
   return (
     <div className="min-h-screen p-8 bg-almeria-dark text-almeria-light relative">
       {isVerifyingAuth ? (
-        <div className="min-h-screen bg-almeria-dark flex items-center justify-center">
-          <p className="text-gray-400 text-lg">Cargando...</p>
+        <div className="min-h-screen bg-almeria-black p-8">
+          <div className="max-w-4xl mx-auto animate-pulse mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="h-96 bg-gray-800 rounded-lg" />
+            <div className="h-96 bg-gray-800 rounded-lg" />
+          </div>
         </div>
       ) : (
         <>

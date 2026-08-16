@@ -771,7 +771,19 @@ function CompetitionDetails() {
   // PANTALLA DE CARGA
   // ============================================================
   if (!competition || isVerifyingAuth)
-    return <div className="text-white p-10 text-center">Cargando...</div>;
+    return (
+      <div className="min-h-screen bg-almeria-dark p-8">
+        <div className="max-w-6xl mx-auto animate-pulse space-y-6">
+          <div className="h-8 w-40 bg-gray-700 rounded" />
+          <div className="h-10 w-2/3 bg-gray-700 rounded" />
+          <div className="h-4 w-1/3 bg-gray-700 rounded" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div className="h-64 bg-gray-800 rounded lg:col-span-1" />
+            <div className="h-64 bg-gray-800 rounded lg:col-span-2" />
+          </div>
+        </div>
+      </div>
+    );
 
   // ============================================================
   // DATOS CALCULADOS PARA EL RENDERIZADO

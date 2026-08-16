@@ -31,6 +31,7 @@ export default function CompetitorEditorModal({
   const [competitors, setCompetitors] = useState([]);
   const [editStates, setEditStates] = useState({}); // { [_id]: { ...campos } }
   const [savingId, setSavingId] = useState(null);
+  const [savedFlashId, setSavedFlashId] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // Carga todos los competidores al abrir el modal
@@ -95,6 +96,11 @@ export default function CompetitorEditorModal({
         ),
       );
       onSaved?.();
+      setSavedFlashId(competitorId);
+      setTimeout(
+        () => setSavedFlashId((id) => (id === competitorId ? null : id)),
+        900,
+      );
     } catch (err) {
       alert(err.response?.data?.message || "Error al guardar.");
     } finally {
@@ -176,7 +182,13 @@ export default function CompetitorEditorModal({
                   return (
                     <tr
                       key={competitor._id}
-                      className={`transition ${dirty ? "bg-orange-50" : "bg-white hover:bg-gray-100"}`}
+                      className={`transition-colors duration-700 ${
+                        savedFlashId === competitor._id
+                          ? "bg-green-100"
+                          : dirty
+                            ? "bg-orange-50"
+                            : "bg-white hover:bg-gray-100"
+                      }`}
                     >
                       {/* Número de competidor (readonly) */}
                       <td className="p-3 text-center font-mono text-gray-500 font-bold">

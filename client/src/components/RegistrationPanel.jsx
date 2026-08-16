@@ -9,6 +9,7 @@ import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 import { resolveCompetitorAge } from "../utils/formatters";
 import { createSocket } from "../utils/socket";
+import { buildAppsScriptTemplate } from "../utils/appsScriptTemplate";
 
 const STATUS = {
   pending: {
@@ -291,77 +292,7 @@ export default function RegistrationPanel({
                 📄 Plantilla Apps Script
               </p>
               <pre className="bg-gray-900 text-green-300 text-[10px] rounded p-2 overflow-x-auto whitespace-pre-wrap select-all">
-                {`function onFormSubmit(e) {
-  // Nota: "var" es intencional aquí (no un descuido) - es el estilo
-  // predominante en la documentación y ejemplos oficiales de Google Apps
-  // Script; let/const también funcionan en el runtime V8 moderno.
-  var WEBHOOK_URL = "${webhookUrl}";
-  var SECRET = "TU_SECRETO_AQUI";
-  
-  var r = e.namedValues;
-
-  // Si tu pregunta de eventos usa casillas de verificación (selección
-  // múltiple), Google Forms ya une las opciones marcadas con comas en
-  // la celda de la hoja de respuestas (aunque el formulario muestre
-  // fotos junto a cada opción, el valor enviado es el texto de la
-  // opción). Ajusta este mapa si el texto de tus opciones no coincide
-  // exactamente con los códigos internos de la app:
-  // 3x3, 2x2, 4x4, 5x5, 6x6, 7x7, OH, 3x3 BLD, 4x4 BLD, 5x5 BLD,
-  // FMC, Pyraminx, Skewb, Megaminx, Sq-1, Clock
-  var EVENT_LABEL_MAP = {
-    // "Texto exacto de tu opción": "CódigoInterno",
-    // Ejemplo: "Cubo 3x3 clásico": "3x3",
-  };
-  
-  function getField(key) {
-    var arr = r[key];
-    return arr && arr[0] ? arr[0].trim() : "";
-  }
-
-  function getEventsField(key) {
-    var raw = getField(key);
-    if (!raw) return [];
-    return raw
-      .split(",")
-      .map(function (s) { return s.trim(); })
-      .filter(Boolean)
-      .map(function (label) { return EVENT_LABEL_MAP[label] || label; });
-  }
-
-  // La fecha de nacimiento se lee del ItemResponse (no de namedValues)
-  // para evitar ambigüedades de formato regional (DD/MM vs MM/DD).
-  function getDateField(questionTitle) {
-    var items = e.response.getItemResponses();
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].getItem().getTitle() === questionTitle) {
-        return items[i].getResponse();
-      }
-    }
-    return "";
-  }
-  
-  // Ajusta los títulos exactos a los de las preguntas de tu formulario:
-  var data = {
-    name: getField("Nombre completo"),
-    wcaId: getField("WCA ID"),
-    birthDate: getField("Fecha de nacimiento"),
-    locality: getField("Ciudad"),
-    email: getField("Email"),
-    events: getEventsField("Eventos"),
-    formResponseId: e.response.getId()
-  };
-  
-  var options = {
-    method: "post",
-    contentType: "application/json",
-    headers: { "X-Webhook-Secret": SECRET },
-    payload: JSON.stringify(data),
-    muteHttpExceptions: true
-  };
-  
-  var response = UrlFetchApp.fetch(WEBHOOK_URL, options);
-  Logger.log(response.getContentText());
-}`}
+                {buildAppsScriptTemplate(webhookUrl)}
               </pre>
             </div>
           </div>
