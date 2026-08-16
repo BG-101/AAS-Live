@@ -183,7 +183,7 @@ function Home() {
       setShowLogin(false);
       setLoginData({ username: "", password: "" });
     } catch (err) {
-      alert(err.response?.data?.message || "Error al iniciar sesión");
+      toast(err.response?.data?.message || "Error al iniciar sesión", "error");
     }
   };
 
@@ -390,7 +390,10 @@ function Home() {
       setCustomAgeGroups([{ label: "", minAge: "", maxAge: "" }]);
       setUseCustomAgeGroups(false);
     } catch (error) {
-      alert("Error: " + error.response?.data?.message);
+      toast(
+        error.response?.data?.message || "Error al crear la competición.",
+        "error",
+      );
     }
   };
 

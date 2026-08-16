@@ -14,7 +14,11 @@ const Result = require("../models/Result");
 const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 const { editWindowGuard, byParamId } = require("../middleware/editWindow");
-const { ROUND_FORMATS, invalidateSORCache } = require("../utils/wcaLogic");
+const {
+  ROUND_FORMATS,
+  invalidateSORCache,
+  resolveAgeGroups,
+} = require("../utils/wcaLogic");
 const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
@@ -68,6 +72,7 @@ router.get("/by-wca/:wcaId", async (req, res) => {
 
     const publicCompetition = competition.toObject();
     delete publicCompetition.webhookSecret;
+    publicCompetition.resolvedAgeGroups = resolveAgeGroups(competition);
 
     res.json({ ...publicCompetition, competitorCount });
   } catch (err) {

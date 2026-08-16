@@ -38,35 +38,20 @@ import {
   getRoundFormatMeta,
 } from "../utils/formatters";
 
-const DEFAULT_AGE_GROUPS_CLIENT = [
-  { _id: "alevin", label: "Alevín (<=10)", maxAge: 10 },
-  { _id: "infantil", label: "Infantil (11-15)", minAge: 11, maxAge: 15 },
-  { _id: "absoluta", label: "Absoluta (>=16)", minAge: 16 },
-];
-
 const resolveAgeGroupsClient = (competition) =>
-  competition?.ageGroups?.length > 0
-    ? competition.ageGroups
-        .map((g) => ({
-          _id: g._id,
-          label:
-            g.minAge != null && g.maxAge != null
-              ? `${g.label} (${g.minAge}-${g.maxAge})`
-              : g.maxAge != null
-                ? `${g.label} (<=${g.maxAge})`
-                : g.minAge != null
-                  ? `${g.label} (>=${g.minAge})`
-                  : g.label,
-          minAge: g.minAge,
-          maxAge: g.maxAge,
-        }))
-        .sort((a, b) => {
-          const aMin = a.minAge ?? -Infinity;
-          const bMin = b.minAge ?? -Infinity;
-          if (aMin !== bMin) return aMin - bMin;
-          return (a.maxAge ?? Infinity) - (b.maxAge ?? Infinity);
-        })
-    : DEFAULT_AGE_GROUPS_CLIENT;
+  (competition?.resolvedAgeGroups || []).map((g) => ({
+    _id: g._id,
+    label:
+      g.minAge != null && g.maxAge != null
+        ? `${g.label} (${g.minAge}-${g.maxAge})`
+        : g.maxAge != null
+          ? `${g.label} (<=${g.maxAge})`
+          : g.minAge != null
+            ? `${g.label} (>=${g.minAge})`
+            : g.label,
+    minAge: g.minAge,
+    maxAge: g.maxAge,
+  }));
 
 const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {
   if (!groupKey) return true;
@@ -364,7 +349,7 @@ function CompetitionDetails() {
       setShowLogin(false);
       setLoginData({ username: "", password: "" });
     } catch (err) {
-      alert(err.response?.data?.message || "Error al iniciar sesión");
+      toast(err.response?.data?.message || "Error al iniciar sesión", "error");
     }
   };
 
@@ -428,7 +413,7 @@ function CompetitionDetails() {
       setRefreshResults((prev) => prev + 1);
       setShowDropdown(false);
     } catch (err) {
-      alert("Error eliminando");
+      toast("Error eliminando", "error");
     }
   };
 
@@ -446,11 +431,14 @@ function CompetitionDetails() {
       const res = await axios.delete(
         `${API_URL}/api/competitors/empty-trash/${compId}`,
       );
-      alert(res.data.message);
+      toast(res.data.message, "success");
       setRefreshCompetitors((prev) => prev + 1);
       setRefreshCompetitions((prev) => prev + 1);
     } catch (err) {
-      alert(err.response?.data?.message || "Error al vaciar la papelera");
+      toast(
+        err.response?.data?.message || "Error al vaciar la papelera",
+        "error",
+      );
     }
   };
 
@@ -592,7 +580,7 @@ function CompetitionDetails() {
       setRefreshCompetitions((prev) => prev + 1);
       setSelectedRound(selectedRound + 1); // Navega a la nueva ronda
     } catch (error) {
-      alert(error.response?.data?.message || "Error");
+      toast(error.response?.data?.message || "Error", "error");
     }
   };
 
@@ -612,7 +600,7 @@ function CompetitionDetails() {
       setRefreshCompetitions((prev) => prev + 1);
       setRefreshResults((prev) => prev + 1);
     } catch (err) {
-      alert("Error al guardar");
+      toast("Error al guardar", "error");
     }
   };
 
@@ -691,7 +679,7 @@ function CompetitionDetails() {
       setRefreshCompetitions((prev) => prev + 1);
       if (cleanupResultsAfter) setRefreshResults((prev) => prev + 1);
     } catch (err) {
-      alert(err.response?.data?.message || "Error al cambiar estado");
+      toast(err.response?.data?.message || "Error al cambiar estado", "error");
     }
   };
 
@@ -710,7 +698,10 @@ function CompetitionDetails() {
       setRefreshResults((prev) => prev + 1);
       setRefreshCompetitors((prev) => prev + 1);
     } catch (err) {
-      alert(err.response?.data?.message || "Error al actualizar la retirada.");
+      toast(
+        err.response?.data?.message || "Error al actualizar la retirada.",
+        "error",
+      );
     }
   };
 

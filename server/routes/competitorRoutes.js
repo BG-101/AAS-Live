@@ -16,6 +16,7 @@ const {
   processAdvancements,
   resolveCompetitorAge,
   invalidateSORCache,
+  toPublicCompetitor,
 } = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
@@ -28,14 +29,6 @@ const {
   isEditWindowOpen,
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
-
-const sanitizeCompetitorPayload = (competitor, referenceDate = null) => {
-  if (!competitor) return competitor;
-  const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
-  if (referenceDate) plain.age = resolveCompetitorAge(plain, referenceDate);
-  delete plain.birthDate;
-  return plain;
-};
 
 // ============================================================
 // GET /api/competitors/:compId
@@ -52,9 +45,7 @@ router.get("/:compId", validateObjectId("compId"), async (req, res) => {
     })
       .select("+birthDate")
       .lean();
-    res.json(
-      competitors.map((c) => sanitizeCompetitorPayload(c, comp.startDate)),
-    );
+    res.json(competitors.map((c) => toPublicCompetitor(c, comp.startDate)));
   } catch (err) {
     sendServerError(res, err);
   }
@@ -93,7 +84,7 @@ router.get(
           .select("+birthDate")
           .lean();
         return res.json(
-          competitors.map((c) => sanitizeCompetitorPayload(c, comp.startDate)),
+          competitors.map((c) => toPublicCompetitor(c, comp.startDate)),
         );
       }
 
@@ -140,7 +131,7 @@ router.get(
       // Extrae solo los competidores que avanzan
       const eligibleCompetitors = processedResults
         .filter((r) => r.advances)
-        .map((r) => sanitizeCompetitorPayload(r.competitor, comp.startDate));
+        .map((r) => toPublicCompetitor(r.competitor, comp.startDate));
 
       res.json(eligibleCompetitors);
     } catch (err) {
