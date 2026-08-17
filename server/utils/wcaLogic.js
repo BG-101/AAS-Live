@@ -216,6 +216,8 @@ async function getEligibleCountByAgeGroup(
       ageGroups,
       comp.startDate,
     ).length;
+    memo.set(key, result);
+    return result; // Corta aquí, no sigue la lógica de ronda anterior
   }
 
   const prevRoundNum = round - 1;

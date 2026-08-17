@@ -79,6 +79,10 @@ export default function RegistrationPanel({
   }, [competitionId]);
 
   useEffect(() => {
+    if (show && competitionId) load();
+  }, [show, competitionId, load]);
+
+  useEffect(() => {
     if (!show || !competitionId) return;
     const socket = createSocket();
     socket.on("nueva_inscripcion", (data) => {

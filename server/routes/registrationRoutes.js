@@ -410,7 +410,7 @@ router.patch(
         }
       }
 
-      invalidateSORCache(competitionId);
+      invalidateSORCache(reg.competition.toString());
       req.app.get("socketio")?.emit("competidor_actualizado", {
         competitionId: reg.competition.toString(),
       });

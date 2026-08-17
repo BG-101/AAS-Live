@@ -215,6 +215,47 @@ describe("processAdvancements sin grupos de edad", () => {
       false,
     );
   });
+
+  test("processAdvancements reutiliza el memo entre grupos de edad", async () => {
+    const comp = await makeCompetition({
+      ageGroupsEnabled: true,
+      ageGroups: [
+        { label: "G1", maxAge: 18 },
+        { label: "G2", maxAge: 30 },
+        { label: "G3", minAge: 30 },
+      ],
+      rounds: [
+        {
+          event: "3x3",
+          roundNumber: 1,
+          advancementType: "ranking",
+          advancementValue: 10,
+        },
+        {
+          event: "3x3",
+          roundNumber: 2,
+          advancementType: "ranking",
+          advancementValue: 0,
+        },
+      ],
+    });
+
+    const c1 = await makeCompetitor(comp._id, 1, "A");
+    const results = [asResult(c1, 1000, 1100)];
+    const spy = jest.spyOn(Competition, "findById");
+
+    await processAdvancements(
+      results,
+      comp._id.toString(),
+      "3x3",
+      comp.rounds[1],
+      2,
+      true,
+    );
+    // findById se llama 1 vez para resolver ageGroups, no 1 por grupo
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(2);
+    spy.mockRestore();
+  });
 });
 
 describe("isWithdrawnFromNextRound", () => {

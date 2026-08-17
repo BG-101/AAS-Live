@@ -351,7 +351,7 @@ router.post(
         }
       }
 
-      invalidateSORCache(competitionId);
+      invalidateSORCache(compId);
       const io = req.app.get("socketio");
       if (io && createdSuccessfully) {
         io.emit("competidor_actualizado", { competitionId: compId });
@@ -398,7 +398,7 @@ router.delete(
         name: deletedName,
       });
 
-      invalidateSORCache(competitionId);
+      invalidateSORCache(comp.competition.toString());
       const io = req.app.get("socketio");
       if (io)
         io.emit("competidor_actualizado", {

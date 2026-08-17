@@ -378,7 +378,7 @@ router.put(
         updatedComp = comp;
       });
 
-      invalidateSORCache(competitionId);
+      invalidateSORCache(req.params.id);
       // Notifica a los clientes conectados
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json(updatedComp);
@@ -488,7 +488,7 @@ router.delete(
         if (reopenedAny) await comp.save({ session });
       });
 
-      invalidateSORCache(competitionId);
+      invalidateSORCache(req.params.id);
       // Socket + respuesta solo tras commit confirmado
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });
