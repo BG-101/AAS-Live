@@ -254,8 +254,9 @@ function Projector() {
   // ============================================================
   if (!competition)
     return (
-      <div className="min-h-screen bg-black p-10">
-        <div className="animate-pulse space-y-6">
+      <div className="min-h-screen bg-black p-10" role="status">
+        <span className="sr-only">Cargando competición...</span>
+        <div className="animate-pulse space-y-6" aria-hidden="true">
           <div className="h-10 w-1/2 bg-gray-800 rounded" />
           <div className="h-6 w-1/3 bg-gray-800 rounded" />
           <div className="space-y-3 mt-8">

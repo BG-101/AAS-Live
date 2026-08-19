@@ -29,24 +29,29 @@ export const buildAppsScriptTemplate = (
       .map(function (label) { return EVENT_LABEL_MAP[label] || label; });
   }
 
-  function getDateField(questionTitle) {
-    var items = e.response.getItemResponses();
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].getItem().getTitle() === questionTitle) {
-        return items[i].getResponse();
-      }
-    }
-    return "";
+  // Normaliza a YYYY-MM-DD sin importar el formato regional del formulario
+  // (dd/mm/aaaa, mm/dd/aaaa...).
+  function normalizeDate(raw) {
+    if (!raw) return "";
+    var parsed = new Date(raw);
+    if (isNaN(parsed.getTime())) return raw; // No parseable: se envía tal cual
+    var y = parsed.getFullYear();
+    var m = String(parsed.getMonth() + 1).padStart(2, "0");
+    var d = String(parsed.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + d;
   }
-  
+
+  // Este trigger está vinculado a la HOJA de respuestas, no al formulario:
+  // "e" solo trae namedValue/range/values, nunca e.response. formResponseId
+  // se deriva de la fila de la hoja (estable salve reordenar/borrar filas a mano).
   var data = {
     name: getField("Nombre completo"),
     wcaId: getField("WCA ID"),
-    birthDate: getField("Fecha de nacimiento"),
+    birthDate: normalizeDate(getField("Fecha de nacimiento")),
     locality: getField("Ciudad"),
     email: getField("Email"),
     events: getEventsField("Eventos"),
-    formResponseId: e.response.getId()
+    formResponseId: "row_" + e.range.getRow()
   };
   
   var options = {

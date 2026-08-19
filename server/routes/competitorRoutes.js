@@ -328,6 +328,7 @@ router.post(
               }
 
               if (mirroredCreatedThisComp) {
+                invalidateSORCache(seriesComp._id.toString());
                 const io = req.app.get("socketio");
                 if (io) {
                   io.emit("competidor_actualizado", {

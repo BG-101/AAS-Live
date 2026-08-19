@@ -326,6 +326,12 @@ router.put(
   editWindowGuard(byParamId()),
   async (req, res) => {
     const { event, roundNumber, status, cleanupResultsAfter } = req.body;
+
+    const ALLOWED_STATUSES = ["In Progress", "Finished"];
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ message: `Estado inválido: "${status}".` });
+    }
+
     const session = await mongoose.startSession();
     const businessError = (s, msg) =>
       Object.assign(new Error(msg), { status: s });
@@ -357,7 +363,7 @@ router.put(
           }
         }
 
-        if (status === "In Progress" && cleanupResultsAfter) {
+        if (status === "In Progress" && cleanupResultsAfter === true) {
           await Result.deleteMany(
             { competition: req.params.id, event, round: { $gt: roundNumber } },
             { session },

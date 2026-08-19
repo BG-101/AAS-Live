@@ -410,6 +410,32 @@ describe("PATCH /api/registrations/:id/approve", () => {
     const inB = await Competitor.find({ competition: compB._id, name: "Dup" });
     expect(inB.length).toBe(1); // No duplicado ni excede aforo
   });
+
+  test("invalida SOR de la competición espejo tras auto-inscripción", async () => {
+    const seriesName = `SeriesCache${Date.now()}`;
+    const compA = await makeCompetition({
+      series: seriesName,
+      sorEnabled: true,
+      scoringSystem: "sor",
+    });
+    const compB = await makeCompetition({
+      series: seriesName,
+      sorEnabled: true,
+      scoringSystem: "sor",
+    });
+
+    const before = await request(app).get(`/api/sor/${compB._id}`);
+    expect(before.body.rankings).toHaveLength(0);
+
+    await request(app)
+      .post("/api/competitors")
+      .set("Cookie", cookie)
+      .send({ competitionId: compA._id, name: "Carlos", events: ["3x3"] });
+
+    // Sin invalidación, esto devolvería el caché stale con rankings vacío
+    const after = await request(app).get(`/api/sor/${compB._id}`);
+    expect(after.body.rankings).toHaveLength(1);
+  });
 });
 
 describe("PATCH /api/registrations/:id/reject", () => {
@@ -485,5 +511,25 @@ describe("DELETE /api/registrations/:id", () => {
       .set("Cookie", cookie);
     expect(res.status).toBe(200);
     expect(await Registration.findById(reg._id)).toBeNull();
+  });
+
+  test("emite inscripcion_actualizada al eliminar", async () => {
+    await createUser("admin9", "clave12345", "SuperAdmin");
+    const cookie = await loginAs(app, "admin9", "clave12345");
+    const comp = await makeCompetition();
+    const reg = await Registration.create({
+      competition: comp._id,
+      name: "Ana",
+      status: "pending",
+    });
+
+    await request(app)
+      .delete(`/api/registrations/${reg._id}`)
+      .set("Cookie", cookie);
+
+    expect(app.get("socketio").emit).toHaveBeenCalledWith(
+      "inscripcion_actualizada",
+      expect.objectContaining({ competitionId: comp._id.toString() }),
+    );
   });
 });

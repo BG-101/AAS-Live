@@ -244,7 +244,11 @@ async function getEligibleCountByAgeGroup(
   const prevRound = comp.rounds.find(
     (r) => r.event === event && r.roundNumber === prevRoundNum,
   );
-  if (!prevRound) result = 0;
+  if (!prevRound) {
+    result = 0;
+    memo.set(key, result);
+    return result;
+  }
 
   const validCompetitors = validPrevResults.filter((r) => r.best > 0).length;
 

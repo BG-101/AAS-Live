@@ -5,7 +5,7 @@
 // edad, localidad y eventos inscritos).
 // ============================================================
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
 import { getAgeAtDate } from "../utils/formatters";
@@ -32,6 +32,7 @@ export default function CompetitorEditorModal({
   const [editStates, setEditStates] = useState({}); // { [_id]: { ...campos } }
   const [savingId, setSavingId] = useState(null);
   const [savedFlashId, setSavedFlashId] = useState(null);
+  const flashTimeoutRef = useRef({}); // Un timeout por competitorId
   const [loading, setLoading] = useState(false);
 
   // Carga todos los competidores al abrir el modal
@@ -97,10 +98,14 @@ export default function CompetitorEditorModal({
       );
       onSaved?.();
       setSavedFlashId(competitorId);
-      setTimeout(
-        () => setSavedFlashId((id) => (id === competitorId ? null : id)),
-        900,
-      );
+
+      if (flashTimeoutRef.current[competitorId]) {
+        clearTimeout(flashTimeoutRef.current[competitorId]);
+      }
+      flashTimeoutRef.current[competitorId] = setTimeout(() => {
+        setSavedFlashId((id) => (id === competitorId ? null : id));
+        delete flashTimeoutRef.current[competitorId];
+      }, 900);
     } catch (err) {
       alert(err.response?.data?.message || "Error al guardar.");
     } finally {

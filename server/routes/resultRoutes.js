@@ -14,6 +14,7 @@ const Competitor = require("../models/Competitor");
 const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
+const wcaLogic = require("../utils/wcaLogic");
 
 const {
   calculateStats,
@@ -21,8 +22,7 @@ const {
   getRoundFormatMeta,
   ROUND_FORMATS,
   toPublicCompetitor,
-  invalidateSORCache,
-} = require("../utils/wcaLogic");
+} = wcaLogic;
 const {
   getCompetitionOrFail,
   getCompetitorOrFail,
@@ -292,10 +292,11 @@ router.post(
         session.endSession();
       }
 
+      // Invalida ANTES del bloque de socket: el Result ya está comiteado aquí,
+      // así que el SOR debe reflejarlo aunque el cálculo del payload falle.
+      wcaLogic.invalidateSORCache(competitionId);
+
       // Calcula y emite los resultados actualizados por WebSocket ANTES de responder.
-      // (Antes vivía fuera del try/catch, sin await: quedaba como trabajo en segundo
-      // plano no rastreado, causando condiciones de carrera en tests y la posibilidad
-      // de servir una respuesta HTTP inconsitente con el evento de socket emitido).
       try {
         const updatedResults = await Result.find({
           competition: competitionId,
@@ -336,7 +337,6 @@ router.post(
           competitor: toPublicCompetitor(r.competitor, compForSocket.startDate),
         }));
 
-        invalidateSORCache(competitionId);
         const io = req.app.get("socketio");
         if (io) {
           io.emit("resultado_actualizado", {

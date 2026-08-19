@@ -458,6 +458,20 @@ describe("PUT /api/competitions/:id/round-status", () => {
       .send({ event: "3x3", roundNumber: 2, status: "Finished" });
     expect(res.status).toBe(400);
   });
+
+  test("status fuera del enum -> 400, no muta la ronda", async () => {
+    const comp = await makeCompetition();
+    const res = await request(app)
+      .put(`/api/competitions/${comp._id}/round-status`)
+      .set("Cookie", cookie)
+      .send({ event: "3x3", roundNumber: 1, status: "foo" });
+    expect(res.status).toBe(400);
+
+    const unchanged = await Competition.findById(comp._id);
+    expect(unchanged.rounds.find((r) => r.roundNumber === 1).status).toBe(
+      "In Progress",
+    );
+  });
 });
 
 describe("DELETE /api/competitions/:id", () => {
