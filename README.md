@@ -125,6 +125,7 @@ aas-live/
 - Los WebSockets emiten el payload de resultados ya procesado, no una señal de "recarga". Los clientes actualizan su estado sin GET adicionales.
 - La URL de conexión Socket.IO y la URL base de la API REST se derivan de la misma fuente (`client/src/utils/api.js` → `client/src/utils/socket.js`), garantizando que en desarrollo ambas apuntan a `localhost:3001` y en producción al origen del despliegue.
 - La asignación del número de competidor usa un bucle de reintentos con detección de error de índice duplicado (`code 11000`) respaldado por un índice único compuesto `{competition, competitorNumber}` en MongoDB, eliminando la posibilidad de race conditions en inscripciones concurrentes.
+- El cálculo de SOR (`calculateSOR`) usa una caché en memoria con TTL de 2.5s por `(competición, grupo de edad)`, invalidada explícitamente en cada mutación relevante (resultados, altas/bajas de competidor, cambios de estado de ronda, aprobación de inscripciones) - incluyendo las competiciones espejo de una misma serie. Evita recomputar SOR completa en cada emisión de socket cuando varios clientes consultan la misma competición o serie simultánemante.
 
 ---
 
@@ -306,11 +307,11 @@ Las competiciones pueden agruparse en **series** (ligas). Al inscribir un compet
 - **Alta directa** (`POST /api/competitors`): se refleja en todas las competiciones activas en la serie, copiando la lista de eventos tal cual se envió.
 - **Aprobación de inscripción** (`PATCH /api/registrations/:id/approve`): se refleja solo en competiciones de la serie **aún no finalizadas** (`endDate` >= fecha actual), y únicamente con los eventos en **común** entre la inscripción original y cada competición destino. La comprobación de aforo/duplicado y la inserción son atómicas por competición destino (transacción de Mongo), de forma que aprobaciones concurrentes de la misma persona en distintas competiciones de la serie no exceden el aforo ni dupliquen el registro.
 
-### Gestión de inscripciones (v1.1.0)
+### Gestión de inscripciones
 
 El sistema incorpora un flujo completo de inscripción para prepararse antes de la competición:
 
-- **Webhook seguro** para recibir solicitudes desde Google Forms o formularios externos.
+- **Webhook seguro** para recibir solicitudes desde Google Forms o formularios externos. La plantilla de Apps Script (generada desde el panel de inscripciones) se vincula a la **hoja de respuestas**, no al formulario - el evento del trigger expone `namedValues`/`range`, no `response`; usar la plantilla generada por la app evita el error `e.response is undefined` de scripts vinculados incorrectamente.
 - **Alta manual** desde el panel de organización para incorporar participantes sin formulario.
 - **Estados de inscripción**: pendiente, aprobada o rechazada, con historial de acciones.
 - **Aprobación automática** que crea el competidor asociado, respeta el aforo configurado y lo replica en las competiciones activas de la serie (si aplica).
@@ -337,6 +338,7 @@ Cuando está activado, genera una clasificación global sumando el rango de cada
 - **Estilo F1**: puntos por posición (25-18-15-12-10-8-6-4-2-1), mayor puntuación = mejor.
 
 El SOR puede consultarse por competición individual o de forma agregada para toda la serie desde `/series/:seriesName/sor`.
+El cálculo se cachea en memoria (TTL 2.5s) por competición y grupo de edad, para no recalcular en cada actualización de resultados cuando hay varios espectadores conectados a la vez.
 
 **Criterios de puntuación por evento (SOR clásico):**
 
@@ -423,6 +425,7 @@ Todos los endpoints protegidos requieren una cookie `jwtToken` válida.
 - **Sanitización**: `express-mongo-sanitize` previene inyecciones de operadores MongoDB.
 - **Cabeceras HTTP**: `helmet` configura cabeceras de seguridad estándar.
 - **Validación de IDs**: middleware `validateObjectId` en todas las rutas con parámetros ObjectId; validación manual en endpoints con IDs en el body, devolviendo 400 en lugar de un CastError 500 de Mongoose.
+- **Validación de estado de ronda**: `PUT /api/competitions/:id/round-status` solo acepta `"In Progress"` o `"Finished"`; cualquier otro valor se rechaza con 400 antes de tocar la base de datos, evitando estados no reconocidos que romperían el cálculo de SOR y las validaciones de avance secuencial entre rondas.
 - **Soft delete**: los competidores y competiciones borrados no se eliminan físicamente, se marcan con `isDeleted: true` y se renombran para liberar índices únicos.
 - **Integridad de numeración**: índice único compuesto `{competition, competitorNumber}` en el modelo `Competitor`, combinado con un bucle de reintentos en la inscripción, previene duplicados de número de competidor bajo carga concurrente.
 - **Auditoría**: cada modificación de tiempos queda registrada en `AuditLog` con el estado anterior y el nuevo, accesible solo para admins.
