@@ -20,6 +20,7 @@ const {
   byParamId,
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
+const { invalidateSORCache } = require("../utils/wcaLogic");
 
 const normalizeAge = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -388,6 +389,7 @@ router.patch(
               }
 
               if (mirroredCreated) {
+                invalidateSORCache(seriesComp._id.toString());
                 req.app.get("socketio")?.emit("competidor_actualizado", {
                   competitionId: seriesComp._id.toString(),
                 });
@@ -409,6 +411,7 @@ router.patch(
         }
       }
 
+      invalidateSORCache(reg.competition.toString());
       req.app.get("socketio")?.emit("competidor_actualizado", {
         competitionId: reg.competition.toString(),
       });
@@ -457,6 +460,9 @@ router.patch(
             })
           : res.status(404).json({ message: "No encontrada." });
       }
+      req.app.get("socketio")?.emit("inscripcion_actualizada", {
+        competitionId: reg.competition.toString(),
+      });
       res.json(reg);
     } catch (err) {
       console.error("Error en /reject:", err);
@@ -474,6 +480,9 @@ router.delete(
     try {
       const deleted = await Registration.findByIdAndDelete(req.params.id);
       if (!deleted) return res.status(404).json({ message: "No encontrada." });
+      req.app.get("socketio")?.emit("inscripcion_actualizada", {
+        competitionId: deleted.competition.toString(),
+      });
       res.json({ message: "Eliminada." });
     } catch (err) {
       sendServerError(res, err);

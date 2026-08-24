@@ -14,6 +14,7 @@ const Competitor = require("../models/Competitor");
 const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/auth");
 const validateObjectId = require("../middleware/validateObjectId");
+const wcaLogic = require("../utils/wcaLogic");
 
 const {
   calculateStats,
@@ -21,7 +22,7 @@ const {
   getRoundFormatMeta,
   ROUND_FORMATS,
   toPublicCompetitor,
-} = require("../utils/wcaLogic");
+} = wcaLogic;
 const {
   getCompetitionOrFail,
   getCompetitorOrFail,
@@ -291,10 +292,11 @@ router.post(
         session.endSession();
       }
 
+      // Invalida ANTES del bloque de socket: el Result ya está comiteado aquí,
+      // así que el SOR debe reflejarlo aunque el cálculo del payload falle.
+      wcaLogic.invalidateSORCache(competitionId);
+
       // Calcula y emite los resultados actualizados por WebSocket ANTES de responder.
-      // (Antes vivía fuera del try/catch, sin await: quedaba como trabajo en segundo
-      // plano no rastreado, causando condiciones de carrera en tests y la posibilidad
-      // de servir una respuesta HTTP inconsitente con el evento de socket emitido).
       try {
         const updatedResults = await Result.find({
           competition: competitionId,
@@ -309,7 +311,14 @@ router.post(
           .lean();
 
         const validUpdated = updatedResults.filter((r) => r.competitor != null);
+
+        // Recarga deliberadamente (no reusar el `comp` de getCompetitionOrFail de arriba):
+        // entre el guardado transaccional del Result y este punto, otra request pudo
+        // mutar `comp.rounds` (round-status, round-settings) de forma concurrente.
+        // Usar el `comp` cacheado serviría un payload de socket con reglas de avance
+        // obsoletas. Si se cachea, debe ser con invalidación explícita, no por defecto.
         const compForSocket = await Competition.findById(competitionId);
+
         const roundConfigForSocket = compForSocket.rounds.find(
           (r) => r.event === event && r.roundNumber === roundNum,
         );

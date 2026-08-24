@@ -38,35 +38,20 @@ import {
   getRoundFormatMeta,
 } from "../utils/formatters";
 
-const DEFAULT_AGE_GROUPS_CLIENT = [
-  { _id: "alevin", label: "Alevín (<=10)", maxAge: 10 },
-  { _id: "infantil", label: "Infantil (11-15)", minAge: 11, maxAge: 15 },
-  { _id: "absoluta", label: "Absoluta (>=16)", minAge: 16 },
-];
-
 const resolveAgeGroupsClient = (competition) =>
-  competition?.ageGroups?.length > 0
-    ? competition.ageGroups
-        .map((g) => ({
-          _id: g._id,
-          label:
-            g.minAge != null && g.maxAge != null
-              ? `${g.label} (${g.minAge}-${g.maxAge})`
-              : g.maxAge != null
-                ? `${g.label} (<=${g.maxAge})`
-                : g.minAge != null
-                  ? `${g.label} (>=${g.minAge})`
-                  : g.label,
-          minAge: g.minAge,
-          maxAge: g.maxAge,
-        }))
-        .sort((a, b) => {
-          const aMin = a.minAge ?? -Infinity;
-          const bMin = b.minAge ?? -Infinity;
-          if (aMin !== bMin) return aMin - bMin;
-          return (a.maxAge ?? Infinity) - (b.maxAge ?? Infinity);
-        })
-    : DEFAULT_AGE_GROUPS_CLIENT;
+  (competition?.resolvedAgeGroups || []).map((g) => ({
+    _id: g._id,
+    label:
+      g.minAge != null && g.maxAge != null
+        ? `${g.label} (${g.minAge}-${g.maxAge})`
+        : g.maxAge != null
+          ? `${g.label} (<=${g.maxAge})`
+          : g.minAge != null
+            ? `${g.label} (>=${g.minAge})`
+            : g.label,
+    minAge: g.minAge,
+    maxAge: g.maxAge,
+  }));
 
 const isInAgeGroup = (competitor, groupKey, ageGroups, referenceDate) => {
   if (!groupKey) return true;
@@ -364,7 +349,7 @@ function CompetitionDetails() {
       setShowLogin(false);
       setLoginData({ username: "", password: "" });
     } catch (err) {
-      alert(err.response?.data?.message || "Error al iniciar sesión");
+      toast(err.response?.data?.message || "Error al iniciar sesión", "error");
     }
   };
 
@@ -428,7 +413,7 @@ function CompetitionDetails() {
       setRefreshResults((prev) => prev + 1);
       setShowDropdown(false);
     } catch (err) {
-      alert("Error eliminando");
+      toast("Error eliminando", "error");
     }
   };
 
@@ -446,11 +431,14 @@ function CompetitionDetails() {
       const res = await axios.delete(
         `${API_URL}/api/competitors/empty-trash/${compId}`,
       );
-      alert(res.data.message);
+      toast(res.data.message, "success");
       setRefreshCompetitors((prev) => prev + 1);
       setRefreshCompetitions((prev) => prev + 1);
     } catch (err) {
-      alert(err.response?.data?.message || "Error al vaciar la papelera");
+      toast(
+        err.response?.data?.message || "Error al vaciar la papelera",
+        "error",
+      );
     }
   };
 
@@ -592,7 +580,7 @@ function CompetitionDetails() {
       setRefreshCompetitions((prev) => prev + 1);
       setSelectedRound(selectedRound + 1); // Navega a la nueva ronda
     } catch (error) {
-      alert(error.response?.data?.message || "Error");
+      toast(error.response?.data?.message || "Error", "error");
     }
   };
 
@@ -612,7 +600,7 @@ function CompetitionDetails() {
       setRefreshCompetitions((prev) => prev + 1);
       setRefreshResults((prev) => prev + 1);
     } catch (err) {
-      alert("Error al guardar");
+      toast("Error al guardar", "error");
     }
   };
 
@@ -643,6 +631,7 @@ function CompetitionDetails() {
   /** Alterna el estado de la ronda entre "In Progress" y "Finished" */
   const handleToggleRoundStatus = async (isFinished) => {
     const newStatus = isFinished ? "In Progress" : "Finished";
+    let cleanupResultsAfter = false;
 
     // Al reabrir una ronda, comprueba si hay resultados en rondas posteriores
     if (isFinished) {
@@ -650,7 +639,6 @@ function CompetitionDetails() {
       const laterRounds = competition.rounds.filter(
         (r) => r.event === selectedEvent && r.roundNumber > selectedRound,
       );
-
       if (laterRounds.length > 0) {
         // Comprueba si alguna de esas rondas tiene resultados reales
         let hasLaterResults = false;
@@ -667,33 +655,13 @@ function CompetitionDetails() {
           hasLaterResults = true; // Si falla el check, avisar por precaución
         }
 
-        if (hasLaterResults) {
-          const confirmed = window.confirm(
-            `⚠️ ATENCIÓN\n\n` +
-              `Hay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\n` +
-              `Si reabres esta ronda y modificas tiempos, esos datos quedarán inconsistentes.\n\n` +
-              `¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
-          );
-          if (!confirmed) return;
-        } else {
-          if (!window.confirm("¿Marcar como EN CURSO?")) return;
-        }
-
-        // Se llama SIEMPRE que haya rondas posteriores, tengan o no resultados:
-        // borra lo que haya y reabre cualquier ronda Finished posterior para
-        // no dejar un estado inconsciente (ronda cerrada sin datos reales).
-        try {
-          await axios.delete(
-            `${API_URL}/api/competitions/${compId}/round-results-after`,
-            { data: { event: selectedEvent, fromRound: selectedRound } },
-          );
-        } catch (err) {
-          alert(
-            err.response?.data?.message ||
-              "Error al limpiar resultados posteriores.",
-          );
-          return;
-        }
+        const confirmed = hasLaterResults
+          ? window.confirm(
+              `⚠️ ATENCIÓN\n\nHay resultados en rondas posteriores a la Ronda ${selectedRound} de ${selectedEvent}.\n\nSi reabres esta ronda y modificas tiempos, esos datos quedarán inconsistentes.\n\n¿Quieres reabrir la ronda y ELIMINAR los resultados de todas las rondas posteriores?`,
+            )
+          : window.confirm("¿Marcar como EN CURSO?");
+        if (!confirmed) return;
+        cleanupResultsAfter = hasLaterResults;
       } else {
         if (!window.confirm("¿Marcar como EN CURSO?")) return;
       }
@@ -706,10 +674,12 @@ function CompetitionDetails() {
         event: selectedEvent,
         roundNumber: selectedRound,
         status: newStatus,
+        cleanupResultsAfter,
       });
       setRefreshCompetitions((prev) => prev + 1);
+      if (cleanupResultsAfter) setRefreshResults((prev) => prev + 1);
     } catch (err) {
-      alert(err.response?.data?.message || "Error al cambiar estado");
+      toast(err.response?.data?.message || "Error al cambiar estado", "error");
     }
   };
 
@@ -728,7 +698,10 @@ function CompetitionDetails() {
       setRefreshResults((prev) => prev + 1);
       setRefreshCompetitors((prev) => prev + 1);
     } catch (err) {
-      alert(err.response?.data?.message || "Error al actualizar la retirada.");
+      toast(
+        err.response?.data?.message || "Error al actualizar la retirada.",
+        "error",
+      );
     }
   };
 
@@ -798,7 +771,19 @@ function CompetitionDetails() {
   // PANTALLA DE CARGA
   // ============================================================
   if (!competition || isVerifyingAuth)
-    return <div className="text-white p-10 text-center">Cargando...</div>;
+    return (
+      <div className="min-h-screen bg-almeria-dark p-8">
+        <div className="max-w-6xl mx-auto animate-pulse space-y-6">
+          <div className="h-8 w-40 bg-gray-700 rounded" />
+          <div className="h-10 w-2/3 bg-gray-700 rounded" />
+          <div className="h-4 w-1/3 bg-gray-700 rounded" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div className="h-64 bg-gray-800 rounded lg:col-span-1" />
+            <div className="h-64 bg-gray-800 rounded lg:col-span-2" />
+          </div>
+        </div>
+      </div>
+    );
 
   // ============================================================
   // DATOS CALCULADOS PARA EL RENDERIZADO

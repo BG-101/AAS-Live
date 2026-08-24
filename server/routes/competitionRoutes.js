@@ -14,7 +14,11 @@ const Result = require("../models/Result");
 const mongoose = require("mongoose");
 const { getCompetitionOrFail } = require("../utils/dbHelpers");
 const { editWindowGuard, byParamId } = require("../middleware/editWindow");
-const { ROUND_FORMATS } = require("../utils/wcaLogic");
+const {
+  ROUND_FORMATS,
+  invalidateSORCache,
+  resolveAgeGroups,
+} = require("../utils/wcaLogic");
 const { sendServerError } = require("../utils/errorResponse");
 
 // ============================================================
@@ -68,6 +72,7 @@ router.get("/by-wca/:wcaId", async (req, res) => {
 
     const publicCompetition = competition.toObject();
     delete publicCompetition.webhookSecret;
+    publicCompetition.resolvedAgeGroups = resolveAgeGroups(competition);
 
     res.json({ ...publicCompetition, competitorCount });
   } catch (err) {
@@ -320,39 +325,73 @@ router.put(
   auth(["SuperAdmin", "Delegado"]),
   editWindowGuard(byParamId()),
   async (req, res) => {
-    const { event, roundNumber, status } = req.body;
+    const { event, roundNumber, status, cleanupResultsAfter } = req.body;
+
+    const ALLOWED_STATUSES = ["In Progress", "Finished"];
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ message: `Estado inválido: "${status}".` });
+    }
+
+    const session = await mongoose.startSession();
+    const businessError = (s, msg) =>
+      Object.assign(new Error(msg), { status: s });
+
     try {
-      const comp = await getCompetitionOrFail(req.params.id, res);
-      if (!comp) return;
+      let updatedComp;
+      await session.withTransaction(async () => {
+        const comp = await Competition.findOne({
+          _id: req.params.id,
+          isDeleted: { $ne: true },
+        }).session(session);
+        if (!comp) throw businessError(404, "No encontrada");
 
-      // Busca la ronda y actualiza su estado
-      const roundIndex = comp.rounds.findIndex(
-        (r) => r.event === event && r.roundNumber === roundNumber,
-      );
+        // Busca la ronda y actualiza su estado
+        const roundIndex = comp.rounds.findIndex(
+          (r) => r.event === event && r.roundNumber === roundNumber,
+        );
+        if (roundIndex === -1) throw businessError(404, "Ronda no encontrada");
 
-      if (roundIndex !== -1) {
         if (status === "Finished" && roundNumber > 1) {
           const prevRound = comp.rounds.find(
             (r) => r.event === event && r.roundNumber === roundNumber - 1,
           );
           if (prevRound && prevRound.status !== "Finished") {
-            return res.status(400).json({
-              message: `Debes cerrar la Ronda ${roundNumber - 1} antes de cerrar la Ronda ${roundNumber}.`,
-            });
+            throw businessError(
+              400,
+              `Debes cerrar la Ronda ${roundNumber - 1} antes de cerrar la Ronda ${roundNumber}.`,
+            );
           }
+        }
+
+        if (status === "In Progress" && cleanupResultsAfter === true) {
+          await Result.deleteMany(
+            { competition: req.params.id, event, round: { $gt: roundNumber } },
+            { session },
+          );
+          comp.rounds.forEach((r) => {
+            if (
+              r.event === event &&
+              r.roundNumber > roundNumber &&
+              r.status === "Finished"
+            ) {
+              r.status = "In Progress";
+            }
+          });
         }
 
         comp.rounds[roundIndex].status = status;
         await comp.save();
+        updatedComp = comp;
+      });
 
-        // Notifica a los clientes conectados
-        req.app.get("socketio").emit("competicion_actualizada", req.params.id);
-        res.json(comp);
-      } else {
-        res.status(404).json({ message: "Ronda no encontrada" });
-      }
+      invalidateSORCache(req.params.id);
+      // Notifica a los clientes conectados
+      req.app.get("socketio").emit("competicion_actualizada", req.params.id);
+      res.json(updatedComp);
     } catch (err) {
-      sendServerError(res, err);
+      sendServerError(res, err, { status: err.status || 500 });
+    } finally {
+      session.endSession();
     }
   },
 );
@@ -455,6 +494,7 @@ router.delete(
         if (reopenedAny) await comp.save({ session });
       });
 
+      invalidateSORCache(req.params.id);
       // Socket + respuesta solo tras commit confirmado
       req.app.get("socketio").emit("competicion_actualizada", req.params.id);
       res.json({ message: "Resultados posteriores eliminados." });

@@ -53,6 +53,19 @@ describe("GET /api/competitors/:compId - respuestas públicas", () => {
     expect(res.status).toBe(200);
     expect(res.body[0].birthDate).toBeUndefined();
   });
+
+  test("expone age calculada en la lista pública", async () => {
+    const comp = await makeCompetition({ startDate: "2026-06-01" });
+    await Competitor.create({
+      competitorNumber: 1,
+      name: "Ana",
+      competition: comp._id,
+      events: ["3x3"],
+      birthDate: "2010-01-01",
+    });
+    const res = await request(app).get(`/api/competitors/${comp._id}`);
+    expect(res.body[0].age).toBe(16);
+  });
 });
 
 describe("POST /api/competitors - autenticación", () => {
@@ -152,6 +165,16 @@ describe("POST /api/competitors - validaciones", () => {
       .set("Cookie", cookie)
       .send({ competitionId: comp._id, name: "Ana", events: ["3x3"] });
     expect(res.status).toBe(400);
+  });
+
+  test("expone seriesWarnings en la respuesta", async () => {
+    const compA = await makeCompetition({ series: "X" });
+    const res = await request(app)
+      .post("/api/competitors")
+      .set("Cookie", cookie)
+      .send({ competitionId: compA._id, name: "Carlos", events: ["3x3"] });
+    expect(res.body).toHaveProperty("seriesWarnings");
+    expect(Array.isArray(res.body.seriesWarnings)).toBe(true);
   });
 });
 

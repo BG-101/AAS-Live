@@ -215,6 +215,126 @@ describe("processAdvancements sin grupos de edad", () => {
       false,
     );
   });
+
+  test("processAdvancements reutiliza el memo entre grupos de edad", async () => {
+    const comp = await makeCompetition({
+      ageGroupsEnabled: true,
+      ageGroups: [
+        { label: "G1", maxAge: 18 },
+        { label: "G2", maxAge: 30 },
+        { label: "G3", minAge: 30 },
+      ],
+      rounds: [
+        {
+          event: "3x3",
+          roundNumber: 1,
+          advancementType: "ranking",
+          advancementValue: 10,
+          format: "a",
+          status: "Finished",
+        },
+        {
+          event: "3x3",
+          roundNumber: 2,
+          advancementType: "ranking",
+          advancementValue: 5, // No cero: obliga a calcular avances reales
+          format: "a",
+          status: "In Progress",
+        },
+      ],
+    });
+
+    const [c1, c2, c3] = await Promise.all([
+      makeCompetitor(comp._id, 1, "Joven", { birthDate: "2015-01-01" }), // G1 (11 años)
+      makeCompetitor(comp._id, 2, "Adulto", { birthDate: "2000-01-01" }), // G2 (26 años)
+      makeCompetitor(comp._id, 3, "Mayor", { birthDate: "1980-01-01" }), // G3 (46 años)
+    ]);
+
+    const Result = require("../models/Result");
+    await Promise.all([
+      Result.create({
+        competition: comp._id,
+        competitor: c1._id,
+        event: "3x3",
+        round: 1,
+        times: [1000],
+        best: 1000,
+        average: 1050,
+      }),
+      Result.create({
+        competition: comp._id,
+        competitor: c2._id,
+        event: "3x3",
+        round: 1,
+        times: [1100],
+        best: 1100,
+        average: 1150,
+      }),
+      Result.create({
+        competition: comp._id,
+        competitor: c3._id,
+        event: "3x3",
+        round: 1,
+        times: [1200],
+        best: 1200,
+        average: 1250,
+      }),
+    ]);
+
+    const asResultWithAge = (competitorDoc, best, average) => ({
+      competitor: {
+        _id: competitorDoc._id,
+        name: competitorDoc.name,
+        withdrawals: competitorDoc.withdrawals || [],
+        birthDate: competitorDoc.birthDate,
+      },
+      best,
+      average,
+    });
+
+    const results = [
+      asResultWithAge(c1, 1000, 1100),
+      asResultWithAge(c2, 1100, 1200),
+      asResultWithAge(c3, 1200, 1300),
+    ];
+    const spy = jest.spyOn(Competition, "findById");
+
+    const processed = await processAdvancements(
+      results,
+      comp._id.toString(),
+      "3x3",
+      comp.rounds[1],
+      2,
+      true,
+    );
+
+    // Cada competidor es el único de su grupo de edad; con advancementValue=5
+    // (mayor que el tamaño de cada grupo) todos deben avanzar.
+    expect(processed.every((r) => r.advances)).toBe(true);
+
+    // findById se llama una vez en processAdvancements para resolver ageGroups
+    // y una vez por cada grupo dentro de getEligibleCountByAgeGroup (3 grupos).
+    // Si el memo se rompiera y cada grupo recalculara recursivamente el avance
+    // de rondas anteriores, este número crecería sin límite.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(4); // 1 + ageGroups.length
+    spy.mockRestore();
+  });
+
+  test("getEligibleCountByAgeGroup: ronda anterior sin configurar -> 0, no lanza", async () => {
+    const { getEligibleCountByAgeGroup } = require("../utils/wcaLogic");
+    const comp = await makeCompetition({
+      ageGroupsEnabled: true,
+      rounds: [], // Ronda 1 no configurada
+    });
+
+    const result = await getEligibleCountByAgeGroup(
+      comp._id.toString(),
+      "3x3",
+      2, // Pide ronda 2, la ronda 1 (anterior) no existe en `rounds`
+      "alevin",
+    );
+    expect(result).toBe(0);
+  });
 });
 
 describe("isWithdrawnFromNextRound", () => {

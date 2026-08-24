@@ -15,6 +15,8 @@ const validateObjectId = require("../middleware/validateObjectId");
 const {
   processAdvancements,
   resolveCompetitorAge,
+  invalidateSORCache,
+  toPublicCompetitor,
 } = require("../utils/wcaLogic");
 const {
   getCompetitionOrFail,
@@ -28,14 +30,6 @@ const {
 } = require("../middleware/editWindow");
 const { sendServerError } = require("../utils/errorResponse");
 
-const sanitizeCompetitorPayload = (competitor, referenceDate = null) => {
-  if (!competitor) return competitor;
-  const plain = competitor.toObject ? competitor.toObject() : { ...competitor };
-  if (referenceDate) plain.age = resolveCompetitorAge(plain, referenceDate);
-  delete plain.birthDate;
-  return plain;
-};
-
 // ============================================================
 // GET /api/competitors/:compId
 // Devuelve todos los competidores activos de una competición.
@@ -43,11 +37,15 @@ const sanitizeCompetitorPayload = (competitor, referenceDate = null) => {
 // ============================================================
 router.get("/:compId", validateObjectId("compId"), async (req, res) => {
   try {
+    const comp = await getCompetitionOrFail(req.params.compId, res);
+    if (!comp) return;
     const competitors = await Competitor.find({
       competition: req.params.compId,
       isDeleted: { $ne: true }, // Excluye los competidores borrados
-    }).lean();
-    res.json(competitors.map(sanitizeCompetitorPayload));
+    })
+      .select("+birthDate")
+      .lean();
+    res.json(competitors.map((c) => toPublicCompetitor(c, comp.startDate)));
   } catch (err) {
     sendServerError(res, err);
   }
@@ -86,7 +84,7 @@ router.get(
           .select("+birthDate")
           .lean();
         return res.json(
-          competitors.map((c) => sanitizeCompetitorPayload(c, comp.startDate)),
+          competitors.map((c) => toPublicCompetitor(c, comp.startDate)),
         );
       }
 
@@ -133,7 +131,7 @@ router.get(
       // Extrae solo los competidores que avanzan
       const eligibleCompetitors = processedResults
         .filter((r) => r.advances)
-        .map((r) => sanitizeCompetitorPayload(r.competitor, comp.startDate));
+        .map((r) => toPublicCompetitor(r.competitor, comp.startDate));
 
       res.json(eligibleCompetitors);
     } catch (err) {
@@ -251,6 +249,8 @@ router.post(
       // demás competiciones de la serie.
       // Los fallos son silenciosos para no bloquear la inscripción principal.
       // ============================================================
+      const seriesWarnings = [];
+
       if (comp.series && comp.series.trim() !== "") {
         try {
           let mirroredCreated = false;
@@ -291,7 +291,7 @@ router.post(
                 continue;
               }
 
-              for (let attempt = 0; attempt <= 2; attempt++) {
+              for (let attempt = 0; attempt <= 4; attempt++) {
                 const lastInTarget = await Competitor.findOne({
                   competition: seriesComp._id,
                 })
@@ -317,10 +317,8 @@ router.post(
                     innerErr.code === 11000 &&
                     innerErr.keyPattern?.competitorNumber
                   ) {
-                    if (attempt === 2) {
-                      console.warn(
-                        `Número duplicado en serie "${seriesComp.name}" tras 3 intentos, omitido.`,
-                      );
+                    if (attempt === 4) {
+                      seriesWarnings.push(seriesComp.name);
                       break;
                     }
                     continue;
@@ -330,6 +328,7 @@ router.post(
               }
 
               if (mirroredCreatedThisComp) {
+                invalidateSORCache(seriesComp._id.toString());
                 const io = req.app.get("socketio");
                 if (io) {
                   io.emit("competidor_actualizado", {
@@ -338,6 +337,7 @@ router.post(
                 }
               }
             } catch (innerErr) {
+              seriesWarnings.push(seriesComp.name);
               console.error(
                 `Auto-inscripción fallida en "${seriesComp.name}":`,
                 innerErr.message,
@@ -352,12 +352,13 @@ router.post(
         }
       }
 
+      invalidateSORCache(compId);
       const io = req.app.get("socketio");
       if (io && createdSuccessfully) {
         io.emit("competidor_actualizado", { competitionId: compId });
       }
 
-      res.status(201).json(newCompetitor);
+      res.status(201).json({ ...newCompetitor.toObject(), seriesWarnings });
     } catch (err) {
       // Error 11000 = violación de índice único (nombre duplicado en MongoDB)
       if (err.code === 11000) {
@@ -398,6 +399,7 @@ router.delete(
         name: deletedName,
       });
 
+      invalidateSORCache(comp.competition.toString());
       const io = req.app.get("socketio");
       if (io)
         io.emit("competidor_actualizado", {

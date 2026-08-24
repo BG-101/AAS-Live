@@ -270,4 +270,14 @@ describe("calculateSOR - múltiples eventos y rondas", () => {
     // 2x2: sin ronda -> penalty = nCompetidores+1 = 3 (una sola vez, no por competidor)
     expect(data.absentPenalty).toBe(2 + 3);
   });
+
+  test("calculateSOR cachea resultados dentro del TTL", async () => {
+    const comp = await makeCompetition();
+    await makeCompetitor(comp._id, 1, "A");
+    const spy = jest.spyOn(Competitor, "find");
+    await calculateSOR(comp._id.toString());
+    await calculateSOR(comp._id.toString()); // debe venir de caché
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
 });

@@ -218,6 +218,44 @@ describe("POST /api/results - validaciones", () => {
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/Mo3 requiere exactamente 3/);
   });
+
+  test("invalida SOR aunque falle el payload del socket", async () => {
+    const { invalidateSORCache } = require("../utils/wcaLogic");
+    const invalidateSpy = jest.spyOn(
+      require("../utils/wcaLogic"),
+      "invalidateSORCache",
+    );
+
+    // La 1ª llamada a Competition.findById la consume editWindowGuard
+    // (resuelve la competición para comprobar la ventana de edición).
+    // Solo la 2ª (compForSocket, dentro del bloque de payload de socket)
+    // debe fallar, para forzar el catch sin romper el resto del flujo.
+    const originalFindById = Competition.findById.bind(Competition);
+    let callCount = 0;
+    const findByIdSpy = jest
+      .spyOn(Competition, "findById")
+      .mockImplementation((...args) => {
+        callCount++;
+        if (callCount === 2) return Promise.reject(new Error("boom"));
+        return originalFindById(...args);
+      });
+
+    const res = await request(app)
+      .post("/api/results")
+      .set("Cookie", cookie)
+      .send({
+        competitionId: comp._id,
+        competitorId: competitor._id,
+        event: "3x3",
+        round: 1,
+        times: [1000, 1100, 1200, 1300, 1400],
+      });
+
+    expect(res.status).toBe(200); // La respuesta HTTP no depende del bloque de socket
+    expect(invalidateSpy).toHaveBeenCalledWith(comp._id.toString());
+    findByIdSpy.mockRestore();
+    invalidateSpy.mockRestore();
+  });
 });
 
 describe("POST /api/results - guardado correcto", () => {

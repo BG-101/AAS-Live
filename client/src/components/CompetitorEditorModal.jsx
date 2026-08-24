@@ -5,7 +5,7 @@
 // edad, localidad y eventos inscritos).
 // ============================================================
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API_URL } from "../utils/api";
 import { getAgeAtDate } from "../utils/formatters";
@@ -31,6 +31,8 @@ export default function CompetitorEditorModal({
   const [competitors, setCompetitors] = useState([]);
   const [editStates, setEditStates] = useState({}); // { [_id]: { ...campos } }
   const [savingId, setSavingId] = useState(null);
+  const [savedFlashId, setSavedFlashId] = useState(null);
+  const flashTimeoutRef = useRef({}); // Un timeout por competitorId
   const [loading, setLoading] = useState(false);
 
   // Carga todos los competidores al abrir el modal
@@ -95,6 +97,15 @@ export default function CompetitorEditorModal({
         ),
       );
       onSaved?.();
+      setSavedFlashId(competitorId);
+
+      if (flashTimeoutRef.current[competitorId]) {
+        clearTimeout(flashTimeoutRef.current[competitorId]);
+      }
+      flashTimeoutRef.current[competitorId] = setTimeout(() => {
+        setSavedFlashId((id) => (id === competitorId ? null : id));
+        delete flashTimeoutRef.current[competitorId];
+      }, 900);
     } catch (err) {
       alert(err.response?.data?.message || "Error al guardar.");
     } finally {
@@ -176,7 +187,13 @@ export default function CompetitorEditorModal({
                   return (
                     <tr
                       key={competitor._id}
-                      className={`transition ${dirty ? "bg-orange-50" : "bg-white hover:bg-gray-100"}`}
+                      className={`transition-colors duration-700 ${
+                        savedFlashId === competitor._id
+                          ? "bg-green-100"
+                          : dirty
+                            ? "bg-orange-50"
+                            : "bg-white hover:bg-gray-100"
+                      }`}
                     >
                       {/* Número de competidor (readonly) */}
                       <td className="p-3 text-center font-mono text-gray-500 font-bold">

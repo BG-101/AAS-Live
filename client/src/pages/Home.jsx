@@ -183,7 +183,7 @@ function Home() {
       setShowLogin(false);
       setLoginData({ username: "", password: "" });
     } catch (err) {
-      alert(err.response?.data?.message || "Error al iniciar sesión");
+      toast(err.response?.data?.message || "Error al iniciar sesión", "error");
     }
   };
 
@@ -390,7 +390,10 @@ function Home() {
       setCustomAgeGroups([{ label: "", minAge: "", maxAge: "" }]);
       setUseCustomAgeGroups(false);
     } catch (error) {
-      alert("Error: " + error.response?.data?.message);
+      toast(
+        error.response?.data?.message || "Error al crear la competición.",
+        "error",
+      );
     }
   };
 
@@ -400,8 +403,15 @@ function Home() {
   return (
     <div className="min-h-screen p-8 bg-almeria-dark text-almeria-light relative">
       {isVerifyingAuth ? (
-        <div className="min-h-screen bg-almeria-dark flex items-center justify-center">
-          <p className="text-gray-400 text-lg">Cargando...</p>
+        <div className="min-h-screen bg-almeria-black p-8" role="status">
+          <span className="sr-only">Verificando sesión...</span>
+          <div
+            className="max-w-4xl mx-auto animate-pulse mt-12 grid grid-cols-1 md:grid-cols-2 gap-8"
+            aria-hidden="true"
+          >
+            <div className="h-96 bg-gray-800 rounded-lg" />
+            <div className="h-96 bg-gray-800 rounded-lg" />
+          </div>
         </div>
       ) : (
         <>
