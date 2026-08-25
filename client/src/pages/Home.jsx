@@ -313,6 +313,22 @@ function Home() {
     }
   };
 
+  const handleEmptyCompetitionsTrash = async () => {
+    if (
+      prompt(
+        'PELIGRO: eliminará DEFINITIVAMENTE todas las competiciones en papelera y sus datos (competidores, resultados, auditoría, inscripciones). Escribe "BORRAR":',
+      ) !== "BORRAR"
+    )
+      return;
+    try {
+      const res = await axios.delete(`${API_URL}/api/competitions/empty-trash`);
+      toast(res.data.message, "success");
+      setRefreshCompetitions((prev) => prev + 1);
+    } catch (err) {
+      toast(err.response?.data?.message || "Error vaciando papelera.", "error");
+    }
+  };
+
   // ============================================================
   // HANDLER: Crear nueva competición
   // Construye el payload de rondas y lo envía al servidor
@@ -453,6 +469,15 @@ function Home() {
                   className="bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 transition font-bold shadow-md text-xs md:text-sm"
                 >
                   👥 <span className="hidden sm:inline">Usuarios</span>
+                </button>
+                <button
+                  onClick={handleEmptyCompetitionsTrash}
+                  className="bg-red-900 text-red-100 px-3 py-1.5 rounded border border-red-700 hover:bg-red-700 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  🗑️{" "}
+                  <span className="hidden sm:inline">
+                    Vaciar Papelera Competiciones
+                  </span>
                 </button>
               </>
             )}

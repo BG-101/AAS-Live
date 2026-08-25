@@ -20,6 +20,8 @@ const {
   resolveAgeGroups,
 } = require("../utils/wcaLogic");
 const { sendServerError } = require("../utils/errorResponse");
+const AuditLog = require("../models/AuditLog");
+const Registration = require("../models/Registration");
 
 // ============================================================
 // GET /api/competitions
@@ -395,6 +397,30 @@ router.put(
     }
   },
 );
+
+router.delete("/empty-trash", auth(["SuperAdmin"]), async (req, res) => {
+  try {
+    const trashed = await Competition.find({ isDeleted: true }).select("_id");
+    const trashedIds = trashed.map((c) => c._id);
+
+    const trashedCompetitors = await Competitor.find({
+      competition: { $in: trashedIds },
+    }).select("_id");
+    const competitorIds = trashedCompetitors.map((c) => c._id);
+
+    await Result.deleteMany({ competitor: { $in: competitorIds } });
+    await Competitor.deleteMany({ competition: { $in: trashedIds } });
+    await AuditLog.deleteMany({ competition: { $in: trashedIds } });
+    await Registration.deleteMany({ competition: { $in: trashedIds } });
+    const deleted = await Competition.deleteMany({ isDeleted: true });
+
+    res.json({
+      message: `Papelera vaciada. ${deleted.deletedCount} competiciones eliminadas físicamente.`,
+    });
+  } catch (err) {
+    sendServerError(res, err);
+  }
+});
 
 // ============================================================
 // DELETE /api/competitions/:id
