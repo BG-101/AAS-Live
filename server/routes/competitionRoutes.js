@@ -399,26 +399,52 @@ router.put(
 );
 
 router.delete("/empty-trash", auth(["SuperAdmin"]), async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const trashed = await Competition.find({ isDeleted: true }).select("_id");
-    const trashedIds = trashed.map((c) => c._id);
+    let deletedCount = 0;
+    await session.withTransaction(async () => {
+      const trashed = await Competition.find({ isDeleted: true })
+        .select("_id")
+        .session(session);
+      const trashedIds = trashed.map((c) => c._id);
 
-    const trashedCompetitors = await Competitor.find({
-      competition: { $in: trashedIds },
-    }).select("_id");
-    const competitorIds = trashedCompetitors.map((c) => c._id);
+      const trashedCompetitors = await Competitor.find({
+        competition: { $in: trashedIds },
+      })
+        .select("_id")
+        .session(session);
+      const competitorIds = trashedCompetitors.map((c) => c._id);
 
-    await Result.deleteMany({ competitor: { $in: competitorIds } });
-    await Competitor.deleteMany({ competition: { $in: trashedIds } });
-    await AuditLog.deleteMany({ competition: { $in: trashedIds } });
-    await Registration.deleteMany({ competition: { $in: trashedIds } });
-    const deleted = await Competition.deleteMany({ isDeleted: true });
+      await Result.deleteMany(
+        { competitor: { $in: competitorIds } },
+        { session },
+      );
+      await Competitor.deleteMany(
+        { competition: { $in: trashedIds } },
+        { session },
+      );
+      await AuditLog.deleteMany(
+        { competition: { $in: trashedIds } },
+        { session },
+      );
+      await Registration.deleteMany(
+        { competition: { $in: trashedIds } },
+        { session },
+      );
+      const deleted = await Competition.deleteMany(
+        { _id: { $in: trashedIds } },
+        { session },
+      );
+      deletedCount = deleted.deletedCount;
+    });
 
     res.json({
-      message: `Papelera vaciada. ${deleted.deletedCount} competiciones eliminadas físicamente.`,
+      message: `Papelera vaciada. ${deletedCount} competiciones eliminadas físicamente.`,
     });
   } catch (err) {
     sendServerError(res, err);
+  } finally {
+    session.endSession();
   }
 });
 

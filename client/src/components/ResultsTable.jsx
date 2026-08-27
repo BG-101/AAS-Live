@@ -48,6 +48,7 @@ function MobileDetailSheet({
   selectedRound,
   isWritableAdmin,
   isRoundFinished,
+  isFinalRound,
   onToggleWithdrawal,
 }) {
   if (!result) return null;
@@ -123,6 +124,7 @@ function MobileDetailSheet({
 
         {isWritableAdmin &&
           !isRoundFinished &&
+          !isFinalRound &&
           (() => {
             const withdrawn =
               result.competitor?.withdrawals?.some(
@@ -447,6 +449,7 @@ export default function ResultsTable({
           selectedRound={selectedRound}
           isWritableAdmin={isWritableAdmin}
           isRoundFinished={isRoundFinished}
+          isFinalRound={isFinalRound}
           onToggleWithdrawal={onToggleWithdrawal}
         />
       )}
