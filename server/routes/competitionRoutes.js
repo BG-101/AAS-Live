@@ -408,17 +408,7 @@ router.delete("/empty-trash", auth(["SuperAdmin"]), async (req, res) => {
         .session(session);
       const trashedIds = trashed.map((c) => c._id);
 
-      const trashedCompetitors = await Competitor.find({
-        competition: { $in: trashedIds },
-      })
-        .select("_id")
-        .session(session);
-      const competitorIds = trashedCompetitors.map((c) => c._id);
-
-      await Result.deleteMany(
-        { competitor: { $in: competitorIds } },
-        { session },
-      );
+      await Result.deleteMany({ competitor: { $in: trashedIds } }, { session });
       await Competitor.deleteMany(
         { competition: { $in: trashedIds } },
         { session },
