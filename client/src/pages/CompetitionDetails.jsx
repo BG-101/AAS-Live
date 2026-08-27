@@ -1089,39 +1089,35 @@ function CompetitionDetails() {
                   canDeleteCompetitor={isWritableAdmin}
                 />
                 {/* Resumen de clasificados por grupo (ronda > 1 con grupos de edad) */}
-                {competition.ageGroupsEnabled &&
-                  selectedRound > 1 &&
-                  isPrevRoundFinished && (
-                    <div className="bg-gray-800 border border-gray-700 rounded p-3 text-xs text-gray-400">
-                      <p className="font-bold text-gray-300 mb-1">
-                        Elegibles esta ronda por grupo:
-                      </p>
-                      {ageGroupsClient.map((group) => {
-                        const count = competitors.filter((c) =>
-                          isInAgeGroup(
-                            c,
-                            group._id,
-                            ageGroupsClient,
-                            competition.startDate,
-                          ),
-                        ).length;
-                        return (
-                          <div key={group._id} className="flex justify-between">
-                            <span>{group.label}</span>
-                            <span className="font-bold text-white">
-                              {count}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      <div className="flex justify-between border-t border-gray-700 mt-1 pt-1">
-                        <span className="font-bold text-gray-300">Total</span>
-                        <span className="font-bold text-white">
-                          {competitors.length}
-                        </span>
-                      </div>
+                {competition.ageGroupsEnabled && isPrevRoundFinished && (
+                  <div className="bg-gray-800 border border-gray-700 rounded p-3 text-xs text-gray-400">
+                    <p className="font-bold text-gray-300 mb-1">
+                      Elegibles esta ronda por grupo:
+                    </p>
+                    {ageGroupsClient.map((group) => {
+                      const count = competitors.filter((c) =>
+                        isInAgeGroup(
+                          c,
+                          group._id,
+                          ageGroupsClient,
+                          competition.startDate,
+                        ),
+                      ).length;
+                      return (
+                        <div key={group._id} className="flex justify-between">
+                          <span>{group.label}</span>
+                          <span className="font-bold text-white">{count}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="flex justify-between border-t border-gray-700 mt-1 pt-1">
+                      <span className="font-bold text-gray-300">Total</span>
+                      <span className="font-bold text-white">
+                        {competitors.length}
+                      </span>
                     </div>
-                  )}
+                  </div>
+                )}
               </>
             )}
           </div>

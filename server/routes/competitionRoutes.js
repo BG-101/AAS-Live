@@ -20,6 +20,8 @@ const {
   resolveAgeGroups,
 } = require("../utils/wcaLogic");
 const { sendServerError } = require("../utils/errorResponse");
+const AuditLog = require("../models/AuditLog");
+const Registration = require("../models/Registration");
 
 // ============================================================
 // GET /api/competitions
@@ -395,6 +397,46 @@ router.put(
     }
   },
 );
+
+router.delete("/empty-trash", auth(["SuperAdmin"]), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    let deletedCount = 0;
+    await session.withTransaction(async () => {
+      const trashed = await Competition.find({ isDeleted: true })
+        .select("_id")
+        .session(session);
+      const trashedIds = trashed.map((c) => c._id);
+
+      await Result.deleteMany({ competitor: { $in: trashedIds } }, { session });
+      await Competitor.deleteMany(
+        { competition: { $in: trashedIds } },
+        { session },
+      );
+      await AuditLog.deleteMany(
+        { competition: { $in: trashedIds } },
+        { session },
+      );
+      await Registration.deleteMany(
+        { competition: { $in: trashedIds } },
+        { session },
+      );
+      const deleted = await Competition.deleteMany(
+        { _id: { $in: trashedIds } },
+        { session },
+      );
+      deletedCount = deleted.deletedCount;
+    });
+
+    res.json({
+      message: `Papelera vaciada. ${deletedCount} competiciones eliminadas físicamente.`,
+    });
+  } catch (err) {
+    sendServerError(res, err);
+  } finally {
+    session.endSession();
+  }
+});
 
 // ============================================================
 // DELETE /api/competitions/:id

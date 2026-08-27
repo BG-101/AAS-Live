@@ -44,6 +44,12 @@ function MobileDetailSheet({
   formatTime,
   formatWCATimesArray,
   onClose,
+  selectedEvent,
+  selectedRound,
+  isWritableAdmin,
+  isRoundFinished,
+  isFinalRound,
+  onToggleWithdrawal,
 }) {
   if (!result) return null;
 
@@ -115,6 +121,40 @@ function MobileDetailSheet({
             {avgValue || "-"}
           </p>
         </div>
+
+        {isWritableAdmin &&
+          !isRoundFinished &&
+          !isFinalRound &&
+          (() => {
+            const withdrawn =
+              result.competitor?.withdrawals?.some(
+                (w) =>
+                  w.event === selectedEvent &&
+                  w.fromRound === selectedRound + 1,
+              ) || false;
+            return (
+              <button
+                onClick={() => {
+                  onToggleWithdrawal?.(
+                    result.competitor._id,
+                    selectedEvent,
+                    selectedRound + 1,
+                    !withdrawn,
+                  );
+                  onClose();
+                }}
+                className={`w-full mt-3 py-2 rounded-lg text-sm font-bold transition ${
+                  withdrawn
+                    ? "bg-red-100 text-red-700 border border-red-300"
+                    : "bg-gray-100 text-gray-600 border border-gray-300"
+                }`}
+              >
+                {withdrawn
+                  ? "🚫 Retirado (toca para restaurar)"
+                  : "✓ Marcar retirado próx. ronda"}
+              </button>
+            );
+          })()}
       </div>
     </>
   );
@@ -405,6 +445,12 @@ export default function ResultsTable({
           formatTime={formatTime}
           formatWCATimesArray={formatWCATimesArray}
           onClose={() => setSelectedResult(null)}
+          selectedEvent={selectedEvent}
+          selectedRound={selectedRound}
+          isWritableAdmin={isWritableAdmin}
+          isRoundFinished={isRoundFinished}
+          isFinalRound={isFinalRound}
+          onToggleWithdrawal={onToggleWithdrawal}
         />
       )}
     </>
