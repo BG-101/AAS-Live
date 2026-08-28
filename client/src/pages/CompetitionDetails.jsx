@@ -26,6 +26,8 @@ import RegistrationPanel from "../components/RegistrationPanel";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 import { exportResultsToCSV } from "../utils/exportCsv";
+import ClosingReportModal from "../components/ClosingReportModal";
+import { buildClosingReport } from "../utils/closingReport";
 
 import {
   formatTime,
@@ -137,6 +139,10 @@ function CompetitionDetails() {
 
   const [showRegistrationPanel, setShowRegistrationPanel] = useState(false);
   const [pendingRegistrationBadge, setPendingRegistrationsBadge] = useState(0);
+
+  const [showClosingReport, setShowClosingReport] = useState(false);
+  const [closingReportText, setClosingReportText] = useState("");
+  const [closingReportLoading, setClosingReportLoading] = useState(false);
 
   // --- Refs para enfocar campos y navegación con teclado ---
   const inputRefs = useRef([]); // Refs de los inputs de tiempos (T1, T2, T3...)
@@ -633,6 +639,19 @@ function CompetitionDetails() {
     }
   };
 
+  const handleOpenClosingReport = async () => {
+    setShowClosingReport(true);
+    setClosingReportLoading(true);
+    try {
+      setClosingReportText(await buildClosingReport(competition));
+    } catch {
+      toast("Error generando el resumen final.", "error");
+      setClosingReportText("");
+    } finally {
+      setClosingReportLoading(false);
+    }
+  };
+
   /** Alterna el estado de la ronda entre "In Progress" y "Finished" */
   const handleToggleRoundStatus = async (isFinished) => {
     const newStatus = isFinished ? "In Progress" : "Finished";
@@ -888,6 +907,12 @@ function CompetitionDetails() {
         competitionStartDate={competition.startDate}
         user={user}
       />
+      <ClosingReportModal
+        show={showClosingReport}
+        onClose={() => setShowClosingReport(false)}
+        reportText={closingReportText}
+        loading={closingReportLoading}
+      />
 
       {/* === CABECERA === */}
       <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
@@ -992,6 +1017,12 @@ function CompetitionDetails() {
                   className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
                 >
                   📜 <span className="hidden sm:inline">Logs</span>
+                </button>
+                <button
+                  onClick={handleOpenClosingReport}
+                  className="bg-green-700 text-white px-3 py-1.5 rounded border border-green-600 hover:bg-green-600 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  📄 <span className="hidden sm:inline">Resumen Final</span>
                 </button>
                 <button
                   onClick={() => {
