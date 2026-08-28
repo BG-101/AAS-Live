@@ -178,6 +178,7 @@ export default function TimeEntryForm({
                 }}
                 id={`time-input-${index}`}
                 type="text"
+                inputMode="numeric"
                 placeholder={isCutoffBlocked ? "CUT" : `T${index + 1}`}
                 className={`w-full p-2 text-center rounded text-sm focus:outline-none focus:ring-2 focus:ring-almeria-orange ${isCutoffBlocked ? "bg-gray-600 text-gray-400 placeholder-gray-400 cursor-not-allowed" : "bg-white text-black"}`}
                 value={inputTimes[index] || ""}

@@ -217,14 +217,17 @@ function CompetitionDetails() {
     };
   }, [wcaId, refreshCompetitions, navigate]);
 
-  // ============================================================
-  // EFECTO: Cargar competidores elegibles para la ronda actual
-  // Los elegibles dependen de la ronda: en R1 todos, en R2+ solo los que avanzaron.
-  // ============================================================
+  // Reset de competidores/grupo de edad durante el render, no en efecto
+  const eligibleKey = `${compId}|${selectedEvent}|${selectedRound}`;
+  const [prevEligibleKey, setPrevEligibleKey] = useState(eligibleKey);
+  if (eligibleKey !== prevEligibleKey) {
+    setPrevEligibleKey(eligibleKey);
+    setSelectedAgeGroup(null);
+    setCompetition([]);
+  }
+
   useEffect(() => {
     if (!compId || !selectedEvent || !selectedRound) return;
-    setSelectedAgeGroup(null);
-    setCompetitors([]); // Limpia mientras carga
     axios
       .get(
         `${API_URL}/api/competitors/${compId}/eligible/${selectedEvent}/${selectedRound}`,
@@ -237,17 +240,19 @@ function CompetitionDetails() {
       .catch(console.error);
   }, [compId, selectedEvent, selectedRound, refreshCompetitors]);
 
-  // ============================================================
-  // EFECTO: Cargar resultados de la ronda actual
-  // ============================================================
+  // Reset de resultados durante el render al cambiar de contexto (no en efecto)
+  const resultsKey = `${compId}|${selectedEvent}|${selectedRound}`;
+  const [prevResultsKey, setPrevResultsKey] = useState(resultsKey);
+  if (resultsKey !== prevResultsKey) {
+    setPrevResultsKey(resultsKey);
+    setResults([]);
+  }
+
   useEffect(() => {
     if (!compId || !selectedEvent || !selectedRound) return;
-    setResults([]); // Limpia mientras carga
     axios
       .get(`${API_URL}/api/results/${compId}/${selectedEvent}/${selectedRound}`)
-      .then((res) => {
-        setResults(res.data);
-      })
+      .then((res) => setResults(res.data))
       .catch(console.error);
   }, [compId, selectedEvent, selectedRound, refreshResults]);
 
@@ -321,7 +326,7 @@ function CompetitionDetails() {
       if (roleRef.current === "Espectador") {
         try {
           await axios.post(`${API_URL}/api/auth/logout`);
-        } catch (e) {
+        } catch {
           // Ignorar silenciosamente si hay error de red
         }
         window.location.href = "/";
@@ -412,7 +417,7 @@ function CompetitionDetails() {
       setRefreshCompetitors((prev) => prev + 1);
       setRefreshResults((prev) => prev + 1);
       setShowDropdown(false);
-    } catch (err) {
+    } catch {
       toast("Error eliminando", "error");
     }
   };
@@ -599,7 +604,7 @@ function CompetitionDetails() {
       setShowSettings(false);
       setRefreshCompetitions((prev) => prev + 1);
       setRefreshResults((prev) => prev + 1);
-    } catch (err) {
+    } catch {
       toast("Error al guardar", "error");
     }
   };
