@@ -265,7 +265,7 @@ export default function CompetitorEditorModal({
                         {competitionEvents.map((ev) => (
                           <label
                             key={ev}
-                            className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer select-none font-bold ${
+                            className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer select-none font-bold focus-within:ring-2 focus-within:ring-almeria-orange focus-within:ring-offset-1 ${
                               edit.events.includes(ev)
                                 ? "bg-almeria-orange text-white border-almeria-orange"
                                 : "bg-gray-100 text-gray-500 border-gray-300"
@@ -273,7 +273,7 @@ export default function CompetitorEditorModal({
                           >
                             <input
                               type="checkbox"
-                              className="hidden"
+                              className="sr-only"
                               checked={edit.events.includes(ev)}
                               onChange={() => toggleEvent(competitor._id, ev)}
                             />

@@ -47,7 +47,7 @@ const buildEventBlock = async (competition) => {
     const { data: results } = await axios.get(
       `${API_URL}/api/results/${competition._id}/${event}/${round.roundNumber}`,
     );
-    const withValue = results.filter((r) => ({
+    const withValue = results.map((r) => ({
       name: r.competitor.name,
       competitor: r.competitor,
       value: formatTime(
@@ -146,7 +146,7 @@ const buildSeriesSORBlock = async (competition) => {
   if (
     data.ageGroupsEnabled &&
     data.ageGroupsHomogeneus &&
-    data.ageGruops?.length
+    data.ageGroups?.length
   ) {
     for (const group of data.ageGroups) {
       const { data: g } = await axios.get(

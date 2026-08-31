@@ -83,7 +83,10 @@ export default function RegistrationPanel({
   const [prevLoadKey, setPrevLoadKey] = useState(loadKey);
   if (loadKey !== prevLoadKey) {
     setPrevLoadKey(loadKey);
-    if (loadKey) setLoading(true);
+    if (loadKey) {
+      setLoading(true);
+      setRegistrations([]);
+    }
   }
 
   useEffect(() => {

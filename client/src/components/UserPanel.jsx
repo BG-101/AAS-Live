@@ -36,7 +36,7 @@ export default function UserPanel({ show, onClose }) {
       .catch(() => {
         if (!cancelled) toast("Error cargando usuarios", "error");
       })
-      .finallY(() => {
+      .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
