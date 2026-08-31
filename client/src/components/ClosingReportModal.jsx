@@ -2,6 +2,15 @@ import React from "react";
 import { toast } from "../utils/toast";
 import { downloadReportAsWord } from "../utils/exportReportDoc";
 
+/**
+ * Displays the competition's final report in a modal with copy and download actions.
+ * @param {boolean} show - Whether to display the modal.
+ * @param {Function} onClose - Called when the modal is closed.
+ * @param {string} reportText - The report content to display and export.
+ * @param {boolean} loading - Whether the report is still being generated.
+ * @param {string} competitionName - The competition name used for the downloaded document.
+ * @returns {JSX.Element|null} The report modal, or null when it is hidden.
+ */
 export default function ClosingReportModal({
   show,
   onClose,

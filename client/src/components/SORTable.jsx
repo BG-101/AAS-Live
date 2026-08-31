@@ -11,8 +11,10 @@ import { API_URL } from "../utils/api";
 import { createSocket } from "../utils/socket";
 
 /**
- * @param {string} compId - ID de la competición
- * @param {boolean} ageGroupsEnabled - Si true, muestra pestañas de grupos de edad
+ * Display SOR standings for a competition with optional age-group filtering and responsive layouts.
+ * @param {string} compId - The competition identifier.
+ * @param {boolean} ageGroupsEnabled - Whether to display age-group tabs and related notices.
+ * @param {boolean} isRoundFinished - Whether the current round has been completed.
  */
 export default function SORTable({
   compId,

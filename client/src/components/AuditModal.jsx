@@ -8,10 +8,12 @@
 import React from "react";
 
 /**
- * @param {boolean} show - Si es true, muestra el modal
- * @param {Function} onClose - Callback para cerrar el modal
- * @param {Array} auditLogs - Array de registros de auditoría del servidor
- * @param {Function} formatTime - Función para formatear un tiempo individual
+ * Displays a responsive modal containing the time-change audit history.
+ * @param {boolean} show - Whether to display the modal.
+ * @param {Function} onClose - Callback invoked to close the modal.
+ * @param {Array} auditLogs - Audit records to display.
+ * @param {Function} formatTime - Formats an individual recorded time.
+ * @returns {JSX.Element|null} The audit history modal, or `null` when hidden.
  */
 export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
   if (!show) return null;

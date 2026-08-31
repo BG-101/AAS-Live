@@ -28,8 +28,9 @@ const stripEmojisForWord = (text) =>
   );
 
 /**
- * @param {string} reportText - Texto plano generado por buildClosingReport
- * @param {string} competitionName - Usado para el nombre del archivo descargado
+ * Generates and downloads the report as a Word-compatible document.
+ * @param {string} reportText - The report content to include in the document.
+ * @param {string} competitionName - The competition name used to create the file name.
  */
 export function downloadReportAsWord(reportText, competitionName) {
   const htmlBody = stripEmojisForWord(reportText || "")

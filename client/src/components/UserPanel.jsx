@@ -9,6 +9,12 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 
+/**
+ * Display a user management panel that lists users and allows administrators to reset their passwords.
+ * @param {Object} props - Component properties.
+ * @param {boolean} props.show - Whether the panel is visible.
+ * @param {Function} props.onClose - Callback invoked when the panel is closed.
+ */
 export default function UserPanel({ show, onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);

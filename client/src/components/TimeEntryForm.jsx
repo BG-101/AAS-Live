@@ -9,27 +9,19 @@ import React, { useMemo } from "react";
 import { formatCutoff } from "../utils/formatters";
 
 /**
- * @param {Array} competitors - Lista de competidores elegibles para esta ronda
- * @param {string} searchName - Texto del buscador
- * @param {Function} setSearchName - Setter del buscador
- * @param {boolean} showDropdown - Si es true, muestra el dropdown de resultados
- * @param {Function} setShowDropdown - Setter del dropdown
- * @param {string} selectedCompetitorId - ID del competidor seleccionado
- * @param {Function} setSelectedCompetitorId - Setter del competidor
- * @param {Function} handleSelectCompetitor - Callback al seleccionar un competidor del dropdown
- * @param {Function} handleDeleteCompetitor - Callback al borrar un competidor
- * @param {Array} inputTimes - Array de strings con los tiempos introducidos
- * @param {Function} setInputTimes - Setter de los tiempos
- * @param {Function} handleTimeKeyDown - Manejador de teclas para navegación con Enter
- * @param {Function} handleSubmitTimes - Callback al enviar el formulario
- * @param {Object} inputRefs - Refs de los inputs de tiempos (para enfocar con Enter)
- * @param {Object} searchInputRef - Ref del input de búsqueda
- * @param {Object} submitBtnRef - Ref del botón de envío
- * @param {boolean} isSavingTimes - True mientras se guardan los tiempos (bloquea la UI)
- * @param {number} attemptsCount - Número de intentos (5 o 3)
- * @param {number} roundCutoff - Valor del cutoff en centésimas (0 = sin cutoff)
- * @param {number} limitIndex - Índice a partir del cual se aplica el cutoff (2 para Ao5, 1 para Mo3)
- * @param {boolean} cutoffPassed - Si el competidor ha superado el cutoff
+ * Provides competitor selection and time-entry controls for a round.
+ * @param {Array} competitors - Competitors eligible for the round.
+ * @param {string} searchName - Current competitor search text.
+ * @param {boolean} showDropdown - Whether to display search results.
+ * @param {string} selectedCompetitorId - ID of the selected competitor.
+ * @param {Array} inputTimes - Entered attempt times.
+ * @param {boolean} isSavingTimes - Whether times are currently being saved.
+ * @param {number} attemptsCount - Number of attempts to display.
+ * @param {number} roundCutoff - Cutoff value, or `0` when no cutoff is active.
+ * @param {number} limitIndex - Index from which cutoff-blocked attempts begin.
+ * @param {boolean} cutoffPassed - Whether the competitor has passed the cutoff.
+ * @param {boolean} canDeleteCompetitor - Whether competitors can be deleted.
+ * @return {JSX.Element} The time-entry form.
  */
 export default function TimeEntryForm({
   competitors = [],

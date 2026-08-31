@@ -10,6 +10,9 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { createSocket } from "../utils/socket";
 
+/**
+ * Display the aggregated SOR ranking for all competitions in a series.
+ */
 function SeriesSOR() {
   const { seriesName } = useParams();
   const [data, setData] = useState(null);
