@@ -36,6 +36,7 @@ AAS Live es una aplicación web full-stack diseñada para gestionar competicione
 - 📺 **Modo Proyector**: pantalla de resultados en vivo con scroll automático y animación de podio para finales.
 - 🔒 **Seguridad DevSecOps**: JWT en cookies `httpOnly`, RBAC, rate limiting, sanitización de queries MongoDB, registro de auditoría inmutable y protección contra race conditions en la asignación de números de competidor.
 - 🗑️ **Papelera con hard delete en cascada**: tanto competidores como competiciones completas soportan vaciado definitivo (`SuperAdmin`), transaccional y atómico: elimina en cascada resultados, auditoría e inscripciones asociadas sin dejar datos huérfanos.
+- 📄 **Resumen final exportable**: genera un Top 3 consolidado por evento (con desglose por grupo de edad si aplica), Top 3 SOR y, si la competición es la última de su serie por fecha de fin, el SOR agregado de la serie. Descargable como documento Word (`.doc`) o copiable al portapapeles.
 - ⌛ **Ventana de edición por rol**: los Delegados solo pueden modificar tiempos, competidores y rondas hasta `DELEGATE_EDIT_WINDOW_DAYS` días después de la fecha de fin de la competición; pasado ese plazo, solo un SuperAdmin puede tocarla. Evita modificaciones accidentales o maliciosas sobre torneos ya cerrados.
 - 🔐 **Webhook de inscripciones con caducidad**: el formulario externo deja de aceptar repuestas automáticamente el mismo día en que empieza la competición, y no se puede regenerar el secreto pasada esa fecha.
 - 🐳 **Despliegue containerizado**: imágenes Docker sin privilegios (usuario no-root) publicadas en GHCR en cada release de GitHub (excluyendo pre-release), con actualización manual mediante pull explícito de las imágenes.
@@ -110,11 +111,14 @@ aas-live/
         │   ├── RoundSettingsModal.jsx    # Configuración de formato y avance por ronda
         │   ├── UserPanel.jsx             # Listado de usuarios y reseteo de contraseña (SuperAdmin)
         │   ├── LoginModal.jsx            # Modal de inicio de sesión
-        │   └── RegisterModal.jsx         # Modal de registro de usuarios
+        │   ├── RegisterModal.jsx         # Modal de registro de usuarios
+        │   └── ClosingReportModal.jsx    # Modal del resumen final (vista previa, copiar, descargar Word)
         └── utils/
             ├── api.js                # URL base de la API según entorno (dev/prod)
             ├── socket.js             # Factoría de conexión Socket.IO con URL unificada
             ├── formatters.js         # Conversión y formateo de tiempos WCA (incluye Bo5)
+            ├── closingReport.js      # Construcción del texto del resumen final(Top 3 por evento/SOR/serie)
+            ├── exportReportDoc.js    # Exportación del resumen final como documento Word (.doc)
             ├── exportCsv.js          # Generación y descarga de CSV de resultados
             └── toast.js              # Sistema de notificaciones toast ligero
 ```
@@ -363,6 +367,17 @@ Accesible desde `/projector/:id/:event/:round`. Diseñado para mostrarse en un m
 - **Modo Podio**: animación de aparición de los top 3 al cerrar una ronda final.
 
 Alterna automáticamente entre ambos modos. Actualización en tiempo real por WebSocket. El enlace al proyector se oculta automáticamente cuando la vista activa es el SOR.
+
+### Resumen Final
+
+Accesible desde el botón "Resumen Final" (Admin/Delegado) en la vista de gestión de una competición. Genera un texto consolidado con:
+
+- **Top 3 por evento**, usando el average o el best según corresponda al formato (Ao5/Mo3 vs Bo3/Bo5), tomado de la ronda más avanzada disponible (Finished, o si no hay ninguna, la In Progress de mayor número).
+- **Top 3 por evento y grupo de edad**, si la competición tiene `ageGroupsEnabled`.
+- **Top 3 SOR** (y grupo de edad), si `sorEnabled`.
+- **SOR de la serie**, solo si esta competición es la de `endDate` más reciente dentro de su serie, y con desglose por grupo de edad solo si todas las competiciones de la serie tienen configuraciones de edad homogéneas.
+
+El resumen puede copiarse al portapapeles o descargarse como documento Word (`.doc`, vía HTML con mimetype `application/msword`), con los emojis sustituidos por texto plano en la versión descargada para evitar glifos rotos en el visor de Word.
 
 ### Retiradas de ronda
 
