@@ -21,7 +21,7 @@ export default function SORTable({
 }) {
   const [activeGroup, setActiveGroup] = useState(null); // null = todos (sin filtro)
   const [sorData, setSorData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState(null); // Para el sheet móvil
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [ageGroupsList, setAgeGroupsList] = useState([]);
@@ -37,10 +37,17 @@ export default function SORTable({
           color: "bg-blue-100 text-blue-700 border-blue-300",
         };
 
-  useEffect(() => {
-    if (!compId) return;
+  // Reset durante el render al cambiar de competición/grupo (no en refreshTrigger)
+  const sorKey = `${compId}|${activeGroup || ""}`;
+  const [prevSorKey, setPrevSorKey] = useState(sorKey);
+  if (sorKey !== prevSorKey) {
+    setPrevSorKey(sorKey);
     setLoading(true);
     setSorData(null);
+  }
+
+  useEffect(() => {
+    if (!compId) return;
     const url = `${API_URL}/api/sor/${compId}${
       activeGroup ? `?ageGroup=${activeGroup}` : ""
     }`;

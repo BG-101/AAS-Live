@@ -78,9 +78,33 @@ export default function RegistrationPanel({
     }
   }, [competitionId]);
 
+  // Reset durante el render al abrir/cambiar de competición
+  const loadKey = show ? competitionId : null;
+  const [prevLoadKey, setPrevLoadKey] = useState(loadKey);
+  if (loadKey !== prevLoadKey) {
+    setPrevLoadKey(loadKey);
+    if (loadKey) setLoading(true);
+  }
+
   useEffect(() => {
-    if (show && competitionId) load();
-  }, [show, competitionId, load]);
+    if (!show || !competitionId) return;
+    let cancelled = false;
+    axios
+      .get(`${API_URL}/api/registrations/${competitionId}`)
+      .then((res) => {
+        if (!cancelled) setRegistrations(res.data);
+      })
+      .catch((err) => {
+        if (!cancelled && err.code !== "ECONNABORTED")
+          toast("Error cargando inscripciones", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [show, competitionId]);
 
   useEffect(() => {
     if (!show || !competitionId) return;

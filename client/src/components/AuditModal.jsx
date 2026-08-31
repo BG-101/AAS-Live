@@ -58,7 +58,7 @@ export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
                 </div>
                 <p className="text-xs text-gray-500 mb-1">
                   {new Date(log.timestamp).toLocaleDateString("es-ES")} ·{" "}
-                  {new Date(log.timestamp).toLocaleDateString("es-ES", {
+                  {new Date(log.timestamp).toLocaleTimeString("es-ES", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",

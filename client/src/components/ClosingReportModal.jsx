@@ -1,11 +1,13 @@
 import React from "react";
 import { toast } from "../utils/toast";
+import { downloadReportAsWord } from "../utils/exportReportDoc";
 
 export default function ClosingReportModal({
   show,
   onClose,
   reportText,
   loading,
+  competitionName,
 }) {
   if (!show) return null;
 
@@ -18,9 +20,9 @@ export default function ClosingReportModal({
     }
   };
 
-  const mailtoHref = `mailto:?subject=${encodeURIComponent(
-    "Resumen final de la competición",
-  )}&body=${encodeURIComponent(reportText || "")}`;
+  const handleDownloadWord = () => {
+    downloadReportAsWord(reportText, competitionName);
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex justify-center items-center p-4">
@@ -59,17 +61,14 @@ export default function ClosingReportModal({
           >
             📋 Copiar
           </button>
-          <a
-            href={mailtoHref}
-            className={`flex-1 text-center bg-almeria-orange text-white font-bold py-2 rounded hover:bg-orange-600 ${loading ? "pointer-events-none opacity-50" : ""}`}
+          <button
+            onClick={handleDownloadWord}
+            disabled={loading}
+            className="flex-1 bg-almeria-orange text-white font-bold py-2 rounded hover:bg-orange-600 disabled:opacity-50"
           >
-            ✉️ Enviar por correo
-          </a>
+            📝 Descargar Word
+          </button>
         </div>
-        <p className="text-[10px] text-gray-400 px-4 pb-3 -mt-2">
-          El enlace de correo puede truncarse en resúmenes muy largos (límite
-          del navegador/cliente de correo). Usa "Copiar" si ocurre.
-        </p>
       </div>
     </div>
   );

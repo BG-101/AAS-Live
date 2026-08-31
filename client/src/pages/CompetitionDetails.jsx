@@ -229,7 +229,7 @@ function CompetitionDetails() {
   if (eligibleKey !== prevEligibleKey) {
     setPrevEligibleKey(eligibleKey);
     setSelectedAgeGroup(null);
-    setCompetition([]);
+    setCompetitors([]);
   }
 
   useEffect(() => {
@@ -644,7 +644,8 @@ function CompetitionDetails() {
     setClosingReportLoading(true);
     try {
       setClosingReportText(await buildClosingReport(competition));
-    } catch {
+    } catch (err) {
+      console.error("Error generando el resumen final:", err);
       toast("Error generando el resumen final.", "error");
       setClosingReportText("");
     } finally {
@@ -912,13 +913,14 @@ function CompetitionDetails() {
         onClose={() => setShowClosingReport(false)}
         reportText={closingReportText}
         loading={closingReportLoading}
+        competitionName={competition.name}
       />
 
       {/* === CABECERA === */}
       <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
-        <div className="w-full px-6 mx-auto flex flex-col md:flex-row justify-between items-start gap-4">
+        <div className="w-full px-6 mx-auto flex flex-col lg:flex-row justify-between items-start gap-4">
           {/* Info de la competición (izquierda) */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 w-full">
             {/* Enlace de vuelta al calendario (oculto en modo proyector) */}
             {!isProjector && (
               <Link
@@ -982,7 +984,7 @@ function CompetitionDetails() {
           </div>
 
           {/* Controles de cabecera (derecha) */}
-          <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap justify-start lg:justify-end w-full lg:w-auto">
             {isWritableAdmin && (
               <button
                 onClick={handleLogoutProjectors}

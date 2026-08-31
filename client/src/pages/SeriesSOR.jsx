@@ -20,10 +20,16 @@ function SeriesSOR() {
   const [ageGroupsList, setAgeGroupsList] = useState([]);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const seriesKey = `${seriesName}|${activeGroup || ""}`;
+  const [prevSeriesKey, setPrevSeriesKey] = useState(seriesKey);
+  if (seriesKey !== prevSeriesKey) {
+    setPrevSeriesKey(seriesKey);
     setLoading(true);
     setData(null);
     setError(null);
+  }
+
+  useEffect(() => {
     const url = `${API_URL}/api/sor/series/${encodeURIComponent(seriesName)}${
       activeGroup ? `?ageGroup=${activeGroup}` : ""
     }`;
@@ -75,8 +81,7 @@ function SeriesSOR() {
       </div>
     );
 
-  const { rankings, competitions, ageGroupsEnabled, ageGroupsHomogeneus } =
-    data;
+  const { competitions, ageGroupsEnabled, ageGroupsHomogeneus } = data;
 
   return (
     <div className="min-h-screen bg-almeria-dark text-almeria-light p-8">

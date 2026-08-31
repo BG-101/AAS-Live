@@ -132,7 +132,8 @@ const buildSeriesSORBlock = async (competition) => {
   const suffix = data.scoringSystem === "f1" ? " pts" : " pts SOR";
 
   const lines = [
-    "━━━━━━━━━━━━━━━━━━━━"`🏆 SOR DE LA SERIE (${competition.series})`,
+    "━━━━━━━━━━━━━━━━━━━━",
+    `🏆 SOR DE LA SERIE (${competition.series})`,
     "━━━━━━━━━━━━━━━━━━━━",
   ];
   lines.push(

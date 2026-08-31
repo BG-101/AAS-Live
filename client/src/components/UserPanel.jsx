@@ -15,20 +15,33 @@ export default function UserPanel({ show, onClose }) {
   const [resettingId, setResettingId] = useState(null);
   const [revealedPassword, setRevealedPassword] = useState(null); // { username, password }
 
-  const load = () => {
-    setLoading(true);
-    axios
-      .get(`${API_URL}/api/auth/users`)
-      .then((res) => setUsers(res.data))
-      .catch(() => toast("Error cargando usuarios", "error"))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
+  // Reset durante el render al abrir el panel
+  const [wasShown, setWasShown] = useState(show);
+  if (show !== wasShown) {
+    setWasShown(show);
     if (show) {
-      load();
+      setLoading(true);
       setRevealedPassword(null);
     }
+  }
+
+  useEffect(() => {
+    if (!show) return;
+    let cancelled = false;
+    axios
+      .get(`${API_URL}/api/auth/users`)
+      .then((res) => {
+        if (!cancelled) setUsers(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) toast("Error cargando usuarios", "error");
+      })
+      .finallY(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [show]);
 
   if (!show) return null;

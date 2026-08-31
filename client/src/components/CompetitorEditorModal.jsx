@@ -210,7 +210,7 @@ export default function CompetitorEditorModal({
                       <input
                         type="text"
                         placeholder="Nombre"
-                        className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm bg-white outline-none focus:border-almeria-orange"
+                        className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
                         value={edit.name}
                         onChange={(e) =>
                           updateField(competitor._id, "name", e.target.value)
@@ -221,7 +221,7 @@ export default function CompetitorEditorModal({
                         <input
                           type="text"
                           placeholder="WCA ID"
-                          className="flex-1 border-2 border-gray-400 rounded px-2 py-1.5 text-sm bg-white font-mono uppercase outline-none focus:border-almeria-orange"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white font-mono uppercase placeholder-gray-400 outline-none focus:border-almeria-orange"
                           value={edit.wcaId}
                           onChange={(e) =>
                             updateField(competitor._id, "wcaId", e.target.value)
@@ -229,7 +229,7 @@ export default function CompetitorEditorModal({
                         />
                         <input
                           type="date"
-                          className="flex-1 border-2 border-gray-400 rounded px-2 py-1.5 text-sm bg-white outline-none focus:border-almeria-orange"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white outline-none focus:border-almeria-orange"
                           value={edit.birthDate}
                           onChange={(e) =>
                             updateField(
@@ -250,7 +250,7 @@ export default function CompetitorEditorModal({
                       <input
                         type="text"
                         placeholder="Localidad"
-                        className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm bg-white outline-none focus:border-almeria-orange"
+                        className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
                         value={edit.locality}
                         onChange={(e) =>
                           updateField(
@@ -319,8 +319,10 @@ export default function CompetitorEditorModal({
                         }`}
                       >
                         {/* Número de competidor (readonly) */}
-                        <td className="p-3 align-top text-center font-mono text-gray-500 font-bold">
-                          {competitor.competitorNumber}
+                        <td className="p-3 align-top text-center">
+                          <div className="border-2 border-transparent rounded px-2 py-1 font-mono text-gray-500 font-bold">
+                            {competitor.competitorNumber}
+                          </div>
                         </td>
 
                         {/* Nombre */}

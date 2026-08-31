@@ -11,7 +11,7 @@
 // ============================================================
 
 import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import axios from "axios";
 import { createSocket } from "../utils/socket";
 import {
@@ -50,8 +50,6 @@ function Projector() {
   const eventRef = useRef(event);
   const roundRef = useRef(round);
 
-  const navigate = useNavigate();
-
   useEffect(() => {
     eventRef.current = event;
   }, [event]);
@@ -83,10 +81,16 @@ function Projector() {
   // ============================================================
   // EFECTO: Cargar resultados de la ronda
   // ============================================================
+  const resultsKey = `${compId}|${event}|${roundNum}`;
+  const [prevResultsKey, setPrevResultsKey] = useState(resultsKey);
+  if (resultsKey !== prevResultsKey) {
+    setPrevResultsKey(resultsKey);
+    setResults([]);
+  }
+
   useEffect(() => {
     if (!compId) return;
     let cancelled = false;
-    setResults([]);
     axios
       .get(`${API_URL}/api/results/${compId}/${event}/${roundNum}`)
       .then((res) => {
@@ -106,10 +110,16 @@ function Projector() {
   // ============================================================
   // EFECTO: Cargar competidores elegibles (para el contador de progreso)
   // ============================================================
+  const competitorsKey = `${compId}|${event}|${roundNum}`;
+  const [prevCompetitorsKey, setPrevCompetitorsKey] = useState(competitorsKey);
+  if (competitorsKey !== prevCompetitorsKey) {
+    setPrevCompetitorsKey(competitorsKey);
+    setCompetitors([]);
+  }
+
   useEffect(() => {
     if (!compId) return;
     let cancelled = false;
-    setCompetitors([]);
     axios
       .get(`${API_URL}/api/competitors/${compId}/eligible/${event}/${roundNum}`)
       .then((res) => {
@@ -141,7 +151,7 @@ function Projector() {
       if (
         data.competitionId === compId &&
         data.event === eventRef.current &&
-        data.round === roundNum
+        data.round === Number(roundRef.current)
       ) {
         setRefreshTrigger((prev) => prev + 1);
       }
