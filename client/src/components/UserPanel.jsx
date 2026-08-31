@@ -9,26 +9,45 @@ import axios from "axios";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 
+/**
+ * Display a user management panel that lists users and allows administrators to reset their passwords.
+ * @param {Object} props - Component properties.
+ * @param {boolean} props.show - Whether the panel is visible.
+ * @param {Function} props.onClose - Callback invoked when the panel is closed.
+ */
 export default function UserPanel({ show, onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [resettingId, setResettingId] = useState(null);
   const [revealedPassword, setRevealedPassword] = useState(null); // { username, password }
 
-  const load = () => {
-    setLoading(true);
-    axios
-      .get(`${API_URL}/api/auth/users`)
-      .then((res) => setUsers(res.data))
-      .catch(() => toast("Error cargando usuarios", "error"))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
+  // Reset durante el render al abrir el panel
+  const [wasShown, setWasShown] = useState(show);
+  if (show !== wasShown) {
+    setWasShown(show);
     if (show) {
-      load();
+      setLoading(true);
       setRevealedPassword(null);
     }
+  }
+
+  useEffect(() => {
+    if (!show) return;
+    let cancelled = false;
+    axios
+      .get(`${API_URL}/api/auth/users`)
+      .then((res) => {
+        if (!cancelled) setUsers(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) toast("Error cargando usuarios", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [show]);
 
   if (!show) return null;

@@ -35,10 +35,17 @@ export default function CompetitorEditorModal({
   const flashTimeoutRef = useRef({}); // Un timeout por competitorId
   const [loading, setLoading] = useState(false);
 
+  // Reset del loading durante el render al abrir/cambiar de competición
+  const editorKey = show ? competitionId : null;
+  const [prevEditorKey, setPrevEditorKey] = useState(editorKey);
+  if (editorKey !== prevEditorKey) {
+    setPrevEditorKey(editorKey);
+    if (editorKey) setLoading(true);
+  }
+
   // Carga todos los competidores al abrir el modal
   useEffect(() => {
     if (!show || !competitionId) return;
-    setLoading(true);
     axios
       .get(`${API_URL}/api/competitors/${competitionId}/full`)
       .then((res) => {
@@ -164,133 +171,29 @@ export default function CompetitorEditorModal({
               Cargando competidores...
             </div>
           ) : (
-            <table className="w-full text-sm text-left min-w-max">
-              <thead className="bg-gray-800 text-white sticky top-0 z-10">
-                <tr>
-                  <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3 min-w-[160px]">Nombre</th>
-                  <th className="p-3 w-32">WCA ID</th>
-                  <th className="p-3 w-36">Fecha Nac.</th>
-                  <th className="p-3 min-w-[140px]">Localidad</th>
-                  <th className="p-3 min-w-[120px]">Eventos</th>
-                  <th className="p-3 w-24 text-center">Guardar</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-gray-200">
+            <>
+              {/* ── VISTA MÓVIL ── */}
+              <div className="block md:hidden space-y-3">
                 {competitors.map((competitor) => {
                   const edit = editStates[competitor._id];
                   if (!edit) return null;
                   const dirty = isDirty(competitor);
                   const saving = savingId === competitor._id;
-
                   return (
-                    <tr
+                    <div
                       key={competitor._id}
-                      className={`transition-colors duration-700 ${
+                      className={`border rounded-lg p-3 space-y-2 transition-colors duration-700 ${
                         savedFlashId === competitor._id
                           ? "bg-green-100"
                           : dirty
                             ? "bg-orange-50"
-                            : "bg-white hover:bg-gray-100"
+                            : "bg-white"
                       }`}
                     >
-                      {/* Número de competidor (readonly) */}
-                      <td className="p-3 text-center font-mono text-gray-500 font-bold">
-                        {competitor.competitorNumber}
-                      </td>
-
-                      {/* Nombre */}
-                      <td className="p-3">
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
-                          value={edit.name}
-                          onChange={(e) =>
-                            updateField(competitor._id, "name", e.target.value)
-                          }
-                        />
-                      </td>
-
-                      {/* WCA ID */}
-                      <td className="p-3">
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white font-mono uppercase placeholder-gray-400 outline-none focus:border-almeria-orange"
-                          value={edit.wcaId}
-                          onChange={(e) =>
-                            updateField(competitor._id, "wcaId", e.target.value)
-                          }
-                          placeholder="Sin ID"
-                        />
-                      </td>
-
-                      {/* Edad */}
-                      <td className="p-3">
-                        <input
-                          type="date"
-                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white outline-none focus:border-almeria-orange"
-                          value={edit.birthDate}
-                          onChange={(e) =>
-                            updateField(
-                              competitor._id,
-                              "birthDate",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="-"
-                        />
-                        {edit.birthDate && competitionStartDate && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {getAgeAtDate(edit.birthDate, competitionStartDate)}{" "}
-                            años en la competición
-                          </p>
-                        )}
-                      </td>
-
-                      {/* Localidad */}
-                      <td className="p-3">
-                        <input
-                          type="text"
-                          className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
-                          value={edit.locality}
-                          onChange={(e) =>
-                            updateField(
-                              competitor._id,
-                              "locality",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="-"
-                        />
-                      </td>
-
-                      {/* Eventos (checkboxes) */}
-                      <td className="p-3">
-                        <div className="flex flex-wrap gap-1">
-                          {competitionEvents.map((ev) => (
-                            <label
-                              key={ev}
-                              className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer select-none transition font-bold ${
-                                edit.events.includes(ev)
-                                  ? "bg-almeria-orange text-white border-almeria-orange"
-                                  : "bg-gray-100 text-gray-500 border-gray-300"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                className="hidden"
-                                checked={edit.events.includes(ev)}
-                                onChange={() => toggleEvent(competitor._id, ev)}
-                              />
-                              {ev}
-                            </label>
-                          ))}
-                        </div>
-                      </td>
-
-                      {/* Botón guardar */}
-                      <td className="p-3 text-center">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono text-gray-500 font-bold text-sm">
+                          #{competitor.competitorNumber}
+                        </span>
                         <button
                           onClick={() => handleSave(competitor._id)}
                           disabled={!dirty || saving}
@@ -302,12 +205,248 @@ export default function CompetitorEditorModal({
                         >
                           {saving ? "..." : dirty ? "💾 Guardar" : "✓"}
                         </button>
-                      </td>
-                    </tr>
+                      </div>
+
+                      <input
+                        type="text"
+                        placeholder="Nombre"
+                        className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
+                        value={edit.name}
+                        onChange={(e) =>
+                          updateField(competitor._id, "name", e.target.value)
+                        }
+                      />
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="WCA ID"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white font-mono uppercase placeholder-gray-400 outline-none focus:border-almeria-orange"
+                          value={edit.wcaId}
+                          onChange={(e) =>
+                            updateField(competitor._id, "wcaId", e.target.value)
+                          }
+                        />
+                        <input
+                          type="date"
+                          className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white outline-none focus:border-almeria-orange"
+                          value={edit.birthDate}
+                          onChange={(e) =>
+                            updateField(
+                              competitor._id,
+                              "birthDate",
+                              e.target.value,
+                            )
+                          }
+                        />
+                      </div>
+                      {edit.birthDate && competitionStartDate && (
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {getAgeAtDate(edit.birthDate, competitionStartDate)}{" "}
+                          años en la competición
+                        </p>
+                      )}
+
+                      <input
+                        type="text"
+                        placeholder="Localidad"
+                        className="w-full border-2 border-gray-400 rounded px-2 py-1.5 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
+                        value={edit.locality}
+                        onChange={(e) =>
+                          updateField(
+                            competitor._id,
+                            "locality",
+                            e.target.value,
+                          )
+                        }
+                      />
+
+                      <div className="flex flex-wrap gap-1">
+                        {competitionEvents.map((ev) => (
+                          <label
+                            key={ev}
+                            className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer select-none font-bold focus-within:ring-2 focus-within:ring-almeria-orange focus-within:ring-offset-1 ${
+                              edit.events.includes(ev)
+                                ? "bg-almeria-orange text-white border-almeria-orange"
+                                : "bg-gray-100 text-gray-500 border-gray-300"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={edit.events.includes(ev)}
+                              onChange={() => toggleEvent(competitor._id, ev)}
+                            />
+                            {ev}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* ── VISTA DESKTOP ── */}
+              <table className="hidden md:table w-full text-sm text-left min-w-max">
+                <thead className="bg-gray-800 text-white sticky top-0 z-10">
+                  <tr>
+                    <th className="p-3 w-12 text-center">#</th>
+                    <th className="p-3 min-w-[160px]">Nombre</th>
+                    <th className="p-3 w-32">WCA ID</th>
+                    <th className="p-3 w-36">Fecha Nac.</th>
+                    <th className="p-3 min-w-[140px]">Localidad</th>
+                    <th className="p-3 min-w-[120px]">Eventos</th>
+                    <th className="p-3 w-24 text-center">Guardar</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-gray-200">
+                  {competitors.map((competitor) => {
+                    const edit = editStates[competitor._id];
+                    if (!edit) return null;
+                    const dirty = isDirty(competitor);
+                    const saving = savingId === competitor._id;
+
+                    return (
+                      <tr
+                        key={competitor._id}
+                        className={`transition-colors duration-700 ${
+                          savedFlashId === competitor._id
+                            ? "bg-green-100"
+                            : dirty
+                              ? "bg-orange-50"
+                              : "bg-white hover:bg-gray-100"
+                        }`}
+                      >
+                        {/* Número de competidor (readonly) */}
+                        <td className="p-3 align-top text-center">
+                          <div className="border-2 border-transparent rounded px-2 py-1 font-mono text-gray-500 font-bold">
+                            {competitor.competitorNumber}
+                          </div>
+                        </td>
+
+                        {/* Nombre */}
+                        <td className="p-3 align-top">
+                          <input
+                            type="text"
+                            className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
+                            value={edit.name}
+                            onChange={(e) =>
+                              updateField(
+                                competitor._id,
+                                "name",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </td>
+
+                        {/* WCA ID */}
+                        <td className="p-3 align-top">
+                          <input
+                            type="text"
+                            className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white font-mono uppercase placeholder-gray-400 outline-none focus:border-almeria-orange"
+                            value={edit.wcaId}
+                            onChange={(e) =>
+                              updateField(
+                                competitor._id,
+                                "wcaId",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="Sin ID"
+                          />
+                        </td>
+
+                        {/* Edad */}
+                        <td className="p-3 align-top">
+                          <input
+                            type="date"
+                            className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white outline-none focus:border-almeria-orange"
+                            value={edit.birthDate}
+                            onChange={(e) =>
+                              updateField(
+                                competitor._id,
+                                "birthDate",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="-"
+                          />
+                          {edit.birthDate && competitionStartDate && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {getAgeAtDate(
+                                edit.birthDate,
+                                competitionStartDate,
+                              )}{" "}
+                              años en la competición
+                            </p>
+                          )}
+                        </td>
+
+                        {/* Localidad */}
+                        <td className="p-3 align-top">
+                          <input
+                            type="text"
+                            className="w-full border-2 border-gray-400 rounded px-2 py-1 text-sm text-gray-900 bg-white placeholder-gray-400 outline-none focus:border-almeria-orange"
+                            value={edit.locality}
+                            onChange={(e) =>
+                              updateField(
+                                competitor._id,
+                                "locality",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="-"
+                          />
+                        </td>
+
+                        {/* Eventos (checkboxes) */}
+                        <td className="p-3 align-top">
+                          <div className="flex flex-wrap gap-1">
+                            {competitionEvents.map((ev) => (
+                              <label
+                                key={ev}
+                                className={`text-xs px-1.5 py-0.5 rounded border cursor-pointer select-none transition font-bold ${
+                                  edit.events.includes(ev)
+                                    ? "bg-almeria-orange text-white border-almeria-orange"
+                                    : "bg-gray-100 text-gray-500 border-gray-300"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={edit.events.includes(ev)}
+                                  onChange={() =>
+                                    toggleEvent(competitor._id, ev)
+                                  }
+                                />
+                                {ev}
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+
+                        {/* Botón guardar */}
+                        <td className="p-3 align-top text-center">
+                          <button
+                            onClick={() => handleSave(competitor._id)}
+                            disabled={!dirty || saving}
+                            className={`px-3 py-1.5 rounded text-xs font-bold transition ${
+                              dirty && !saving
+                                ? "bg-wca-green text-white hover:bg-green-700 shadow"
+                                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            }`}
+                          >
+                            {saving ? "..." : dirty ? "💾 Guardar" : "✓"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>

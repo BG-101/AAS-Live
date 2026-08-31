@@ -26,6 +26,8 @@ import RegistrationPanel from "../components/RegistrationPanel";
 import { API_URL } from "../utils/api";
 import { toast } from "../utils/toast";
 import { exportResultsToCSV } from "../utils/exportCsv";
+import ClosingReportModal from "../components/ClosingReportModal";
+import { buildClosingReport } from "../utils/closingReport";
 
 import {
   formatTime,
@@ -138,6 +140,10 @@ function CompetitionDetails() {
   const [showRegistrationPanel, setShowRegistrationPanel] = useState(false);
   const [pendingRegistrationBadge, setPendingRegistrationsBadge] = useState(0);
 
+  const [showClosingReport, setShowClosingReport] = useState(false);
+  const [closingReportText, setClosingReportText] = useState("");
+  const [closingReportLoading, setClosingReportLoading] = useState(false);
+
   // --- Refs para enfocar campos y navegación con teclado ---
   const inputRefs = useRef([]); // Refs de los inputs de tiempos (T1, T2, T3...)
   const searchInputRef = useRef(null); // Ref del buscador
@@ -217,14 +223,17 @@ function CompetitionDetails() {
     };
   }, [wcaId, refreshCompetitions, navigate]);
 
-  // ============================================================
-  // EFECTO: Cargar competidores elegibles para la ronda actual
-  // Los elegibles dependen de la ronda: en R1 todos, en R2+ solo los que avanzaron.
-  // ============================================================
+  // Reset de competidores/grupo de edad durante el render, no en efecto
+  const eligibleKey = `${compId}|${selectedEvent}|${selectedRound}`;
+  const [prevEligibleKey, setPrevEligibleKey] = useState(eligibleKey);
+  if (eligibleKey !== prevEligibleKey) {
+    setPrevEligibleKey(eligibleKey);
+    setSelectedAgeGroup(null);
+    setCompetitors([]);
+  }
+
   useEffect(() => {
     if (!compId || !selectedEvent || !selectedRound) return;
-    setSelectedAgeGroup(null);
-    setCompetitors([]); // Limpia mientras carga
     axios
       .get(
         `${API_URL}/api/competitors/${compId}/eligible/${selectedEvent}/${selectedRound}`,
@@ -237,17 +246,19 @@ function CompetitionDetails() {
       .catch(console.error);
   }, [compId, selectedEvent, selectedRound, refreshCompetitors]);
 
-  // ============================================================
-  // EFECTO: Cargar resultados de la ronda actual
-  // ============================================================
+  // Reset de resultados durante el render al cambiar de contexto (no en efecto)
+  const resultsKey = `${compId}|${selectedEvent}|${selectedRound}`;
+  const [prevResultsKey, setPrevResultsKey] = useState(resultsKey);
+  if (resultsKey !== prevResultsKey) {
+    setPrevResultsKey(resultsKey);
+    setResults([]);
+  }
+
   useEffect(() => {
     if (!compId || !selectedEvent || !selectedRound) return;
-    setResults([]); // Limpia mientras carga
     axios
       .get(`${API_URL}/api/results/${compId}/${selectedEvent}/${selectedRound}`)
-      .then((res) => {
-        setResults(res.data);
-      })
+      .then((res) => setResults(res.data))
       .catch(console.error);
   }, [compId, selectedEvent, selectedRound, refreshResults]);
 
@@ -321,7 +332,7 @@ function CompetitionDetails() {
       if (roleRef.current === "Espectador") {
         try {
           await axios.post(`${API_URL}/api/auth/logout`);
-        } catch (e) {
+        } catch {
           // Ignorar silenciosamente si hay error de red
         }
         window.location.href = "/";
@@ -412,7 +423,7 @@ function CompetitionDetails() {
       setRefreshCompetitors((prev) => prev + 1);
       setRefreshResults((prev) => prev + 1);
       setShowDropdown(false);
-    } catch (err) {
+    } catch {
       toast("Error eliminando", "error");
     }
   };
@@ -599,7 +610,7 @@ function CompetitionDetails() {
       setShowSettings(false);
       setRefreshCompetitions((prev) => prev + 1);
       setRefreshResults((prev) => prev + 1);
-    } catch (err) {
+    } catch {
       toast("Error al guardar", "error");
     }
   };
@@ -625,6 +636,20 @@ function CompetitionDetails() {
       setAuditLogs(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleOpenClosingReport = async () => {
+    setShowClosingReport(true);
+    setClosingReportLoading(true);
+    try {
+      setClosingReportText(await buildClosingReport(competition));
+    } catch (err) {
+      console.error("Error generando el resumen final:", err);
+      toast("Error generando el resumen final.", "error");
+      setClosingReportText("");
+    } finally {
+      setClosingReportLoading(false);
     }
   };
 
@@ -883,12 +908,19 @@ function CompetitionDetails() {
         competitionStartDate={competition.startDate}
         user={user}
       />
+      <ClosingReportModal
+        show={showClosingReport}
+        onClose={() => setShowClosingReport(false)}
+        reportText={closingReportText}
+        loading={closingReportLoading}
+        competitionName={competition.name}
+      />
 
       {/* === CABECERA === */}
       <div className="bg-gray-900 border-b-4 border-almeria-orange p-4 md:p-8 shadow-md relative">
-        <div className="w-full px-6 mx-auto flex flex-col md:flex-row justify-between items-start gap-4">
+        <div className="w-full px-6 mx-auto flex flex-col lg:flex-row justify-between items-start gap-4">
           {/* Info de la competición (izquierda) */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 w-full">
             {/* Enlace de vuelta al calendario (oculto en modo proyector) */}
             {!isProjector && (
               <Link
@@ -952,7 +984,7 @@ function CompetitionDetails() {
           </div>
 
           {/* Controles de cabecera (derecha) */}
-          <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap justify-start lg:justify-end w-full lg:w-auto">
             {isWritableAdmin && (
               <button
                 onClick={handleLogoutProjectors}
@@ -987,6 +1019,12 @@ function CompetitionDetails() {
                   className="bg-white text-gray-900 px-3 py-1.5 rounded font-bold shadow-md hover:bg-gray-200 text-xs md:text-sm"
                 >
                   📜 <span className="hidden sm:inline">Logs</span>
+                </button>
+                <button
+                  onClick={handleOpenClosingReport}
+                  className="bg-green-700 text-white px-3 py-1.5 rounded border border-green-600 hover:bg-green-600 transition font-bold shadow-md text-xs md:text-sm"
+                >
+                  📄 <span className="hidden sm:inline">Resumen Final</span>
                 </button>
                 <button
                   onClick={() => {

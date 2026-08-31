@@ -8,10 +8,12 @@
 import React from "react";
 
 /**
- * @param {boolean} show - Si es true, muestra el modal
- * @param {Function} onClose - Callback para cerrar el modal
- * @param {Array} auditLogs - Array de registros de auditoría del servidor
- * @param {Function} formatTime - Función para formatear un tiempo individual
+ * Displays a responsive modal containing the time-change audit history.
+ * @param {boolean} show - Whether to display the modal.
+ * @param {Function} onClose - Callback invoked to close the modal.
+ * @param {Array} auditLogs - Audit records to display.
+ * @param {Function} formatTime - Formats an individual recorded time.
+ * @returns {JSX.Element|null} The audit history modal, or `null` when hidden.
  */
 export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
   if (!show) return null;
@@ -34,7 +36,58 @@ export default function AuditModal({ show, onClose, auditLogs, formatTime }) {
 
         {/* Cuerpo del modal: tabla scrollable con los registros */}
         <div className="p-4 overflow-y-auto flex-1 text-black">
-          <table className="w-full text-sm text-left">
+          {/* ── VISTA MÓVIL ── */}
+          <div className="block md:hidden space-y-3">
+            {auditLogs.length === 0 && (
+              <p className="text-center text-gray-500 py-6">
+                No hay registros.
+              </p>
+            )}
+            {auditLogs.map((log) => (
+              <div
+                key={log._id}
+                className="border rounded-lg p-3 bg-gray-50 shadow-sm"
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-bold text-blue-700 text-sm">
+                    {log.user || "-"}
+                  </span>
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded ${log.action === "NUEVO" ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700 "}`}
+                  >
+                    {log.action === "NUEVO" ? "🆕 NUEVO" : "✏️ MOD"}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mb-1">
+                  {new Date(log.timestamp).toLocaleDateString("es-ES")} ·{" "}
+                  {new Date(log.timestamp).toLocaleTimeString("es-ES", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </p>
+                <p className="text-sm font-semibold mb-1">
+                  {log.competitorName}{" "}
+                  <span className="text-gray-400 font-normal">
+                    · {log.event} (R{log.round})
+                  </span>
+                </p>
+                <div className="flex gap-2 text-xs flex-wrap items-center">
+                  <span className="text-red-600 line-through">
+                    {log.oldTimes.length > 0
+                      ? log.oldTimes.map(formatTime).join(" - ")
+                      : "Ninguno"}
+                  </span>
+                  <span className="text-wca-green font-bold">
+                    → {log.newTimes.map(formatTime).join(" - ")}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── VISTA DESKTOP ── */}
+          <table className="hidden md:table w-full text-sm text-left">
             {/* Cabecera de la tabla (sticky para que se mantenga visible al hacer scroll) */}
             <thead className="bg-almeria-dark text-white sticky top-0">
               <tr>

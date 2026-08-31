@@ -160,7 +160,9 @@ function Home() {
       if (roleRef.current === "Espectador") {
         try {
           await axios.post(`${API_URL}/api/auth/logout`);
-        } catch (e) {}
+        } catch {
+          // Ignorara silenciosamente si hay error de red
+        }
         // Estando ya en Home, en lugar de redirigir, recargamos la página
         // para que se borre el estado del usuario y vuelva a pedir login
         window.location.reload();
