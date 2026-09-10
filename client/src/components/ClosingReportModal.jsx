@@ -1,6 +1,6 @@
 import React from "react";
 import { toast } from "../utils/toast";
-import { downloadReportAsWord } from "../utils/exportReportDoc";
+import { downloadReportAsPDF } from "../utils/exportReportDoc";
 
 /**
  * Displays the competition's final report in a modal with copy and download actions.
@@ -29,8 +29,8 @@ export default function ClosingReportModal({
     }
   };
 
-  const handleDownloadWord = () => {
-    downloadReportAsWord(reportText, competitionName);
+  const handleDownloadPDF = () => {
+    downloadReportAsPDF(reportText, competitionName);
   };
 
   return (
@@ -71,11 +71,11 @@ export default function ClosingReportModal({
             📋 Copiar
           </button>
           <button
-            onClick={handleDownloadWord}
+            onClick={handleDownloadPDF}
             disabled={loading}
             className="flex-1 bg-almeria-orange text-white font-bold py-2 rounded hover:bg-orange-600 disabled:opacity-50"
           >
-            📝 Descargar Word
+            📝 Descargar PDF
           </button>
         </div>
       </div>
